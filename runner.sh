@@ -14,9 +14,9 @@ train_project=SAE4RM-train-SAE
 eval_project=SAE4RM-eval-SAE
 pipe_project=SAE4RM-pipe-SAE
 
-device=cuda:7
-        
-for sequence_or_token in "sequence"; do
+device=cuda:0
+
+for sequence_or_token in "sequence" "token"; do
     for layer in 8 12 16; do
         echo $sequence_or_token,$layer
 
@@ -24,7 +24,7 @@ for sequence_or_token in "sequence"; do
             --sequence_or_token $sequence_or_token\
             --pipe_data_path $train_data_path $eval_data_path $apply_data_path --layer $layer --latent_size 16384 \
             --batch_size 64 --max_length 96 --lr 5e-4 --betas 0.9 0.999 --num_epochs 1 --seed 42 --steps 10 --use_wandb 1 \
-            --pipe_project $train_project $eval_project $pipe_project --device $device --k 100 \
+            --pipe_project $train_project $eval_project $pipe_project --device $device --k 32 \
             --api_base $api_base --api_key $api_key --api_version $api_version --engine $engine 
     done
 done
