@@ -1,4 +1,4 @@
-name: zsysae
+name: sae
 channels:
   - defaults
 dependencies:
@@ -107,4 +107,3 @@ dependencies:
       - urllib3==2.3.0
       - wandb==0.19.6
       - wcwidth==0.2.13
-prefix: /mnt/finder/lisihang/envs/zsysae

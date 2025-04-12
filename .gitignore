@@ -176,5 +176,8 @@ cython_debug/
 
 .vscode/
 wandb/
-data/
-SAE_models/
+data/1B/
+data/10M/
+data/100M/
+data/testdata/
+SAE_models/*.pt
