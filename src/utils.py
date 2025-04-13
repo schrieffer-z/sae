@@ -7,13 +7,13 @@ import yaml
 import torch
 import heapq
 import wandb
+import datasets
 import random
 import tiktoken
 import argparse
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-
 from model import *
 from typing import List, Union
 from tqdm import tqdm
@@ -39,7 +39,8 @@ def parse_args():
     parser.add_argument('--max_length', type=int, required=True, help='Maximum sequence length')
     parser.add_argument('--device', type=str, required=True, help='Device to run the model on (e.g., "cuda:0", "cpu")')
     parser.add_argument('--use_wandb', type=int, required=True, help='Whether to use wandb for logging')
-
+    
+    parser.add_argument('--dataset_name', type=str, required=False, help='dataset name')
     parser.add_argument('--data_path', type=str, required=False, help='Path to the dataset')
     parser.add_argument('--wandb_project', type=str, required=False, help='Wandb project name')
     parser.add_argument('--num_epochs', type=int, required=False, help='Number of training epochs')
@@ -49,6 +50,8 @@ def parse_args():
     parser.add_argument('--layer', type=int, required=False, help='Target layer index, start with 1')
     parser.add_argument('--steps', type=int, required=False, help='Number of step batches for unit norm decoder')
 
+
+    parser.add_argument('--resume_from', type=str, required=False, help='Path to a pretrained SAE state dict')
     parser.add_argument('--SAE_path', type=str, required=False, help='Path to the trained SAE model file')
     parser.add_argument('--metric', type=str, required=False, help='Evaluation metric (e.g., "NormMSE", "DeltaCE", "KLDiv")')
 
@@ -96,7 +99,6 @@ def validate_english_text(text: str, allow_extended_ascii=False) -> bool:
 
 class OpenWebTextDataset(Dataset):
     def __init__(self, 
-                 sequence_or_token: str,
                  folder_path: str, 
                  tokenizer: AutoTokenizer, 
                  max_length: int,
@@ -108,36 +110,7 @@ class OpenWebTextDataset(Dataset):
         self.file_list = [f for f in os.listdir(folder_path) if f.endswith('.jsonl')]
 
         self.data = self.load_data()
-        # if sequence_or_token=="sequence":
-        #     self.data = self.load_data_sequence()
-        # else:
-        #     self.data = self.load_data_token()
 
-    # def load_data_token(self):
-    #     data = []
-    #     for file_name in self.file_list:
-    #         file_path = os.path.join(self.folder_path, file_name)
-    #         with open(file_path, 'r', encoding='utf-8') as f:
-    #             for line in f:
-    #                 try:
-    #                     record = json.loads(line.strip())
-    #                     words = record.get(self.keyword, '').split()
-    #                     for i in range(0, len(words), self.max_length):
-    #                         chunk = ' '.join(words[i:i + self.max_length])
-    #                         inputs = self.tokenizer(
-    #                             chunk,
-    #                             return_tensors='pt',
-    #                             max_length=self.max_length,
-    #                             padding='max_length',
-    #                             truncation=True
-    #                         )
-    #                         input_ids = inputs['input_ids'].squeeze(0)
-    #                         attention_mask = inputs['attention_mask'].squeeze(0)
-    #                         data.append((input_ids, attention_mask, torch.tensor([-1])))
-    #                 except json.JSONDecodeError:
-    #                     print(f'Error decoding JSON in file: {file_path}')
-    #                     continue
-    #     return data
     
     def load_data(self):
         sent_token_num = []
@@ -186,21 +159,89 @@ class OpenWebTextDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.data[idx]
-    
+
+
+class SkyworkPreferenceDataset(Dataset):
+    def __init__(self, 
+                 pref_data_path : str,
+                 tokenizer: AutoTokenizer, 
+                 max_length: int,
+        ):
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.pref_data_path = pref_data_path
+        self.data = self.load_data()
+        ck=0
+
+    def load_data(self):
+        # for i in range(len(ds)):
+        #     prompt1 = self.tokenizer.apply_chat_template(ds[i]['chosen'], tokenize=False, add_generation_prompt=False).replace(self.tokenizer.bos_token, "")
+        #     prompt2 = self.tokenizer.apply_chat_template(ds[i]['rejected'], tokenize=False, add_generation_prompt=False).replace(self.tokenizer.bos_token, "")
+        #     tokenized_p1 = self.tokenizer(prompt1, return_tensors='pt', max_length=self.max_length, padding='max_length', truncation=True)
+        #     tokenized_p2 = self.tokenizer(prompt2, return_tensors='pt', max_length=self.max_length, padding='max_length', truncation=True)
+        #     ret.append({
+        #         'input_ids': tokenized_p1['input_ids'],
+        #         'attention_mask': tokenized_p1['attention_mask'],
+        #     })
+        #     ret.append({
+        #         'input_ids': tokenized_p1['input_ids'],
+        #         'attention_mask': tokenized_p2['attention_mask'],
+        #     })
+        #     seq_len1 = torch.max(tokenized_p1['attention_mask']*torch.arange(self.max_length), dim=1).values
+        #     seq_len2 = torch.max(tokenized_p2['attention_mask']*torch.arange(self.max_length), dim=1).values
+        #     sent_token_num.append(seq_len1.item())
+        #     sent_token_num.append(seq_len2.item())
+        # a = np.array(sent_token_num)
+        # print('Sentence Lens Quantile'.center(80, '='))
+        # print(np.quantile(a,[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.91, 0.92, 0.93, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99, 1]))
+        # 
+        # for f in ds_spilit:
+        #     prompt = self.tokenizer.apply_chat_template(
+        #         f['text'], tokenize=True, add_generation_prompt=False)
+        #     sent_token_num.append(len(prompt))
+        
+        ds = datasets.load_dataset('parquet', data_dir=self.pref_data_path)['train'].shuffle(seed=42)
+        tokenizer = self.tokenizer
+        def tokenize(sample):
+            prompt = tokenizer.apply_chat_template(
+                sample['text'], tokenize=False, add_generation_prompt=False).replace(tokenizer.bos_token, "")
+
+            tokenized_pos = tokenizer(
+                prompt,
+                return_tensors='pt',
+                max_length=self.max_length,
+                padding='max_length',
+                truncation=True
+            )
+            return tokenized_pos
+        return datasets.Dataset.from_dict({'text':ds['chosen']+ds['rejected']}).map(tokenize, num_proc=8)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx]
+
 
 def create_dataloader(
-    sequence_or_token: str,
+    dataset_name: str,
     folder_path: str, 
     tokenizer: AutoTokenizer, 
     batch_size: int, 
     max_length: int,
     keyword: str = 'text'
 ) -> DataLoader:
-    dataset = OpenWebTextDataset(sequence_or_token, folder_path, tokenizer, max_length, keyword)
+    if dataset_name=='OpenWebText':
+        dataset = OpenWebTextDataset(folder_path, tokenizer, max_length, keyword)
+    elif dataset_name=='Skywork-Reward-Preference-80K':
+        dataset = SkyworkPreferenceDataset(folder_path, tokenizer, max_length)
+    else:
+        return None 
+
     
     def collate_fn(batch):
-        input_ids = torch.stack([item[0] for item in batch])
-        attention_mask = torch.stack([item[1] for item in batch])
+        input_ids = torch.stack([torch.tensor(item['input_ids']).squeeze() for item in batch])
+        attention_mask = torch.stack([torch.tensor(item['attention_mask']).squeeze() for item in batch])
         return input_ids, attention_mask
 
     dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=0, collate_fn=collate_fn)
@@ -281,8 +322,7 @@ def save_json(data, path):
         json.dump(data, f, ensure_ascii=False, indent=4)
     print(f'Saved data to {path}')
 
-# 用于示意应当重建哪一个token对应的hidden state
-sequence_max_pos = None
+
 def hook_SAE(
     cfg,
     model: TopkSAE,
@@ -332,7 +372,8 @@ class Trainer:
         self.cfg = cfg
         self.device = torch.device(cfg.device)
         self.tokenizer, self.language_model = get_language_model(cfg.model_path, self.device)
-        self.dataloader = create_dataloader(cfg.sequence_or_token ,cfg.data_path, self.tokenizer, cfg.batch_size, cfg.max_length)
+        self.dataloader = create_dataloader(cfg.dataset_name ,cfg.data_path, self.tokenizer, cfg.batch_size, cfg.max_length)
+
         self.title = f'{cfg.sequence_or_token}_Latent{cfg.latent_size}_Layer{cfg.layer}_K{cfg.k}_{cfg.language_model}_{cfg.pipe_data_path[0].split('/')[-1]}'
 
         self.config_dict = {
@@ -342,6 +383,9 @@ class Trainer:
             'steps': self.cfg.steps
         }
         self.model = TopkSAE(cfg.hidden_size, cfg.latent_size, cfg.k)
+        if self.cfg.resume_from is not None:
+            self.title = "Adapted_" + self.title
+            self.model.load_state_dict(torch.load(cfg.SAE_path, weights_only=True))
         self.model.to(self.device)
         self.model.train()
         self.optimizer = Adam(self.model.parameters(), lr=cfg.lr, betas=cfg.betas)
