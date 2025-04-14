@@ -1,3 +1,4 @@
+
 cd src
 
 # GPT interpret Setting
@@ -10,17 +11,17 @@ engine=...
 train_project=SAE4RM-train-SAE
 eval_project=SAE4RM-eval-SAE
 pipe_project=SAE4RM-pipe-SAE
-export WANDB_API_KEY=...
+export WANDB_API_KEY='ac8217b0848b0b74ed1f9abd8bee6b09afcc7b5c'
 
 # Dataset 
 dataset_name=Skywork-Reward-Preference-80K
-train_data_path=...
-eval_data_path=...
-apply_data_path=/...
+train_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/Skywork-train
+eval_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/Skywork-eval
+apply_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/Skywork-eval
 
 # LM backbone for hidden state
-model=...
-model_path_prefix=...
+model=meta/Llama-3.2-1B-Instruct
+model_path_prefix=/mnt/finder/lisihang/models/
 
 # SAE Training Setting
 sequence_or_token=sequence
@@ -68,8 +69,6 @@ for resume_from in ${resume_froms[@]}; do
         layer=21
     fi
 
-
-    
     echo $sequence_or_token, $layer, $k
     echo $model_size, $hidden_size, $latent_size
     python -u main.py --model_size $model_size --model_path $model_path_prefix$model --hidden_size $hidden_size \
