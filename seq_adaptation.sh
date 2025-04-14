@@ -1,20 +1,29 @@
 cd src
-export WANDB_API_KEY='ac8217b0848b0b74ed1f9abd8bee6b09afcc7b5c'
+
+# GPT interpret Setting
 api_base=https://dplc-8.openai.azure.com/
 api_key=DcuVRqY7eBsgOHcO5IvvRShkDKlWhJEDm2ZRHHU2Ja3O8c3HBvT4JQQJ99AKACHrzpqXJ3w3AAABACOGvoip
 api_version=2024-03-01-preview
 engine=gpt-4o
 
-model_path_prefix=/mnt/finder/lisihang/models/
+# Wandb Setting
+train_project=SAE4RM-train-SAE
+eval_project=SAE4RM-eval-SAE
+pipe_project=SAE4RM-pipe-SAE
+export WANDB_API_KEY='ac8217b0848b0b74ed1f9abd8bee6b09afcc7b5c'
+
+# Dataset 
+dataset_name=Skywork-Reward-Preference-80K
 train_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/Skywork-train
 eval_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/Skywork-eval
 apply_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/Skywork-eval
 
-train_project=SAE4RM-train-SAE
-eval_project=SAE4RM-eval-SAE
-pipe_project=SAE4RM-pipe-SAE
-dataset_name=Skywork-Reward-Preference-80K
+# LM backbone for hidden state
 model=meta/Llama-3.2-1B-Instruct
+model_path_prefix=/mnt/finder/lisihang/models/
+
+# SAE Training Setting
+sequence_or_token=sequence
 batch_size=64
 max_length=2048
 device=cuda:1

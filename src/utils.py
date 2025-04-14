@@ -241,14 +241,14 @@ def create_dataloader(
 
     def collate_fn(batch):
         input_ids = torch.stack([
-                torch.tensor(item['input_ids']).squeeze() if dataset_name=='OpenWebText'  else 
-                item[0]
+                item[0] if dataset_name=='OpenWebText'  else 
+                torch.tensor(item['input_ids']).squeeze()
                 for item in batch
             ]
         )
         attention_mask = torch.stack([
-                torch.tensor(item['attention_mask']).squeeze() if dataset_name=='OpenWebText'  else 
-                item[1]
+                item[1] if dataset_name=='OpenWebText'  else 
+                torch.tensor(item['attention_mask']).squeeze()
                 for item in batch
             ]
         )
