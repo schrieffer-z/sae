@@ -181,4 +181,5 @@ data/10M/
 data/100M/
 data/testdata/
 SAE_models/*.pt
-*.sh
+hf.sh
+/*temp*
