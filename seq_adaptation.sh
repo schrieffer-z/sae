@@ -1,10 +1,10 @@
 cd src
 
 # GPT interpret Setting
-api_base=https://dplc-8.openai.azure.com/
-api_key=DcuVRqY7eBsgOHcO5IvvRShkDKlWhJEDm2ZRHHU2Ja3O8c3HBvT4JQQJ99AKACHrzpqXJ3w3AAABACOGvoip
-api_version=2024-03-01-preview
-engine=gpt-4o
+api_base=...
+api_key=...
+api_version=...
+engine=...
 
 # Wandb Setting
 train_project=SAE4RM-train-SAE
@@ -68,8 +68,6 @@ for resume_from in ${resume_froms[@]}; do
         layer=21
     fi
 
-
-    
     echo $sequence_or_token, $layer, $k
     echo $model_size, $hidden_size, $latent_size
     python -u main.py --model_size $model_size --model_path $model_path_prefix$model --hidden_size $hidden_size \
