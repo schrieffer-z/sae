@@ -6,9 +6,9 @@ api_version=2024-03-01-preview
 engine=gpt-4o
 
 model_path_prefix=/mnt/finder/lisihang/models/
-train_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/datasets/Skywork-Reward-Preference-80K-v0.2/data
-eval_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/testdata
-apply_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/testdata
+train_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/Skywork-train
+eval_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/Skywork-eval
+apply_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/Skywork-eval
 
 train_project=SAE4RM-train-SAE
 eval_project=SAE4RM-eval-SAE
