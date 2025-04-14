@@ -10,7 +10,7 @@ eval_project=SAE4RM-eval-SAE
 pipe_project=SAE4RM-pipe-SAE
 
 dataset_name=OpenWebText
-train_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/datasets/10M
+train_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/10M
 eval_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/testdata
 apply_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/testdata
 

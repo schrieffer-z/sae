@@ -236,13 +236,24 @@ def create_dataloader(
     elif dataset_name=='Skywork-Reward-Preference-80K':
         dataset = SkyworkPreferenceDataset(folder_path, tokenizer, max_length)
     else:
-        return None 
+        raise ValueError(f"Unsupported dataset: {dataset_name}")
 
-    
+
     def collate_fn(batch):
-        input_ids = torch.stack([torch.tensor(item['input_ids']).squeeze() for item in batch])
-        attention_mask = torch.stack([torch.tensor(item['attention_mask']).squeeze() for item in batch])
+        input_ids = torch.stack([
+                torch.tensor(item['input_ids']).squeeze() if dataset_name=='OpenWebText'  else 
+                item[0]
+                for item in batch
+            ]
+        )
+        attention_mask = torch.stack([
+                torch.tensor(item['attention_mask']).squeeze() if dataset_name=='OpenWebText'  else 
+                item[1]
+                for item in batch
+            ]
+        )
         return input_ids, attention_mask
+
 
     dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=0, collate_fn=collate_fn)
     return dataloader
