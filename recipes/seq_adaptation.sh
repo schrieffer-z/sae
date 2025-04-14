@@ -1,11 +1,10 @@
-
 cd src
 
 # GPT interpret Setting
-api_base=...
-api_key=...
-api_version=...
-engine=...
+api_base=https://dplc-8.openai.azure.com/
+api_key=DcuVRqY7eBsgOHcO5IvvRShkDKlWhJEDm2ZRHHU2Ja3O8c3HBvT4JQQJ99AKACHrzpqXJ3w3AAABACOGvoip
+api_version=2024-03-01-preview
+engine=gpt-4o
 
 # Wandb Setting
 train_project=SAE4RM-train-SAE
@@ -28,10 +27,10 @@ sequence_or_token=sequence
 batch_size=64
 max_length=2048
 device=cuda:1
-resume_froms+=(../SAE_models/token_Latent16384_Layer8_K32_1B_10M.pt)
-resume_froms+=(../SAE_models/token_Latent16384_Layer12_K64_1B_10M.pt)
-resume_froms+=(../SAE_models/token_Latent16384_Layer8_K32_1B_10M.pt)
-resume_froms+=(../SAE_models/token_Latent16384_Layer12_K64_1B_10M.pt)
+resume_froms+=(../SAE_models/token_Latent16384_Layer8_K32_1B_10M)
+resume_froms+=(../SAE_models/token_Latent16384_Layer12_K64_1B_10M)
+resume_froms+=(../SAE_models/token_Latent16384_Layer8_K32_1B_10M)
+resume_froms+=(../SAE_models/token_Latent16384_Layer12_K64_1B_10M)
 
 for resume_from in ${resume_froms[@]}; do
     if echo "$model" | grep -q "1B";then
@@ -78,5 +77,5 @@ for resume_from in ${resume_froms[@]}; do
         --batch_size $batch_size --max_length $batch_size --lr 5e-4 --betas 0.9 0.999 --num_epochs 1 --seed 42 --steps 10 --use_wandb 1 \
         --pipe_project $train_project $eval_project $pipe_project --device $device --k $k \
         --api_base $api_base --api_key $api_key --api_version $api_version --engine $engine \
-        --resume_from $resume_from 
+        --resume_from $resume_from.pt 
 done

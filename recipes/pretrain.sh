@@ -23,7 +23,7 @@ model=meta/Llama-3.2-1B-Instruct
 model_path_prefix=/mnt/finder/lisihang/models/
 
 # SAE Training Setting
-batch_size=128
+batch_size=64
 max_length=96
 device=cuda:1
 
