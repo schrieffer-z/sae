@@ -384,8 +384,16 @@ class Trainer:
         self.device = torch.device(cfg.device)
         self.tokenizer, self.language_model = get_language_model(cfg.model_path, self.device)
         self.dataloader = create_dataloader(cfg.dataset_name ,cfg.data_path, self.tokenizer, cfg.batch_size, cfg.max_length)
-
         self.title = f'{cfg.sequence_or_token}_Latent{cfg.latent_size}_Layer{cfg.layer}_K{cfg.k}_{cfg.model_size}_{cfg.pipe_data_path[0].split('/')[-1]}'
+        
+        mp=self.cfg.model_path
+        if 'Llama' in self.cfg.model_path:
+            self.title = mp[mp.find('Llama'):]+'_'+self.title
+        elif 'Qwen' in self.cfg.model_path:
+            self.title = mp[mp.find('Qwen'):]+'_'+self.title
+        else:
+            raise ValueError(f'Unsupport base model type from path {self.cfg.model_path}')
+
         if self.cfg.resume_from is not None:
             self.title = f'{'token' if 'token' in self.cfg.resume_from else 'sequence'}_Adapted_{cfg.sequence_or_token}_Latent{cfg.latent_size}_Layer{cfg.layer}_K{cfg.k}_{cfg.model_size}_{cfg.pipe_data_path[0].split("/")[-1]}'
         self.config_dict = {
@@ -996,6 +1004,14 @@ class SAE_pipeline:
     def __init__(self, cfg):
         self.cfg = cfg
         self.title = f'{cfg.sequence_or_token}_Latent{cfg.latent_size}_Layer{cfg.layer}_K{cfg.k}_{cfg.model_size}_{cfg.pipe_data_path[0].split('/')[-1]}'
+        
+        mp=self.cfg.model_path
+        if 'Llama' in self.cfg.model_path:
+            self.title = mp[mp.find('Llama'):]+'_'+self.title
+        elif 'Qwen' in self.cfg.model_path:
+            self.title = mp[mp.find('Qwen'):]+'_'+self.title
+        else:
+            raise ValueError(f'Unsupport base model type from path {self.cfg.model_path}')
         self.cfg.SAE_path = f'../SAE_models/{self.title}.pt'
         self.result_dict = {}
     
