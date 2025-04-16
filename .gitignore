@@ -183,6 +183,7 @@ data/Skywork-train
 data/Skywork-eval
 data/testdata/
 SAE_models/*.pt
+SAE_models/*
 hf.sh
 /*temp*
 links

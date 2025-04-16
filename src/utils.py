@@ -29,7 +29,6 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 def parse_args():
     parser = argparse.ArgumentParser(description='Configuration on sparse autoencoders pipeline')
 
-    parser.add_argument('--model_size', type=str, required=True, help='Language model name (e.g., "Llama-3.2-1B")')
     parser.add_argument('--model_path', type=str, required=True, help='Language model path')
     parser.add_argument('--sequence_or_token', type=str, required=True, help='Training SAE in sequence level or token level (e.g., "sequence" or "token")')
     parser.add_argument('--hidden_size', type=int, required=True, help='Dimensionality of the input residual stream activation')
@@ -384,7 +383,7 @@ class Trainer:
         self.device = torch.device(cfg.device)
         self.tokenizer, self.language_model = get_language_model(cfg.model_path, self.device)
         self.dataloader = create_dataloader(cfg.dataset_name ,cfg.data_path, self.tokenizer, cfg.batch_size, cfg.max_length)
-        self.title = f'{cfg.sequence_or_token}_Latent{cfg.latent_size}_Layer{cfg.layer}_K{cfg.k}_{cfg.model_size}_{cfg.pipe_data_path[0].split('/')[-1]}'
+        self.title = f'{cfg.sequence_or_token}_Latent{cfg.latent_size}_Layer{cfg.layer}_K{cfg.k}_{cfg.pipe_data_path[0].split('/')[-1]}'
         
         mp=self.cfg.model_path
         if 'Llama' in self.cfg.model_path:
@@ -395,7 +394,7 @@ class Trainer:
             raise ValueError(f'Unsupport base model type from path {self.cfg.model_path}')
 
         if self.cfg.resume_from is not None:
-            self.title = f'{'token' if 'token' in self.cfg.resume_from else 'sequence'}_Adapted_{cfg.sequence_or_token}_Latent{cfg.latent_size}_Layer{cfg.layer}_K{cfg.k}_{cfg.model_size}_{cfg.pipe_data_path[0].split("/")[-1]}'
+            self.title = f'{'token' if 'token' in self.cfg.resume_from else 'sequence'}_Adapted_{cfg.sequence_or_token}_Latent{cfg.latent_size}_Layer{cfg.layer}_K{cfg.k}_{cfg.pipe_data_path[0].split("/")[-1]}'
         self.config_dict = {
             'batch_size': self.cfg.batch_size,
             'num_epochs': self.cfg.num_epochs,
@@ -1003,7 +1002,7 @@ class Interpreter:
 class SAE_pipeline:
     def __init__(self, cfg):
         self.cfg = cfg
-        self.title = f'{cfg.sequence_or_token}_Latent{cfg.latent_size}_Layer{cfg.layer}_K{cfg.k}_{cfg.model_size}_{cfg.pipe_data_path[0].split('/')[-1]}'
+        self.title = f'{cfg.sequence_or_token}_Latent{cfg.latent_size}_Layer{cfg.layer}_K{cfg.k}_{cfg.pipe_data_path[0].split('/')[-1]}'
         
         mp=self.cfg.model_path
         if 'Llama' in self.cfg.model_path:
