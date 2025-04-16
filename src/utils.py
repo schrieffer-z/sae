@@ -283,7 +283,7 @@ def get_language_model(model_path: str, device: torch.device) -> tuple:
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     language_model = AutoModelForCausalLM.from_pretrained(
-        model_path, trust_remote_code=True, return_dict_in_generate=True, output_hidden_states=True
+        model_path, trust_remote_code=True, return_dict_in_generate=True, output_hidden_states=True, torch_dtype=torch.bfloat16
     ).to(device)
     return tokenizer, language_model
 
