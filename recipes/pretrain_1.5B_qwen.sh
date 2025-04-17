@@ -19,8 +19,8 @@ eval_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/testdata
 apply_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/testdata
 
 # LM backbone for hidden state
-hidden_size=4096
-latent_size=32768
+hidden_size=1536
+latent_size=12288
 model=Qwen/Qwen2.5-1.5B-Instruct
 model_path_prefix=/mnt/finder/lisihang/models/
 
@@ -30,10 +30,10 @@ max_length=96
 device=cuda:0
 
 for sequence_or_token in "token"; do
-    for layer in 8 12; do
-        for k in 64 128 192 256; do
+    for layer in 14 18 21; do
+        for k in 24 48 72 96; do
             echo $sequence_or_token, $layer, $k
-            echo $model_size, $hidden_size, $latent_size
+            echo $hidden_size, $latent_size
             python -u main.py --model_path $model_path_prefix$model --hidden_size $hidden_size \
                 --sequence_or_token $sequence_or_token \
                 --dataset_name $dataset_name \

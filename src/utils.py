@@ -388,8 +388,8 @@ class Trainer:
         mp=self.cfg.model_path
         if 'Llama' in self.cfg.model_path:
             self.title = mp[mp.find('Llama'):]+'_'+self.title
-        elif 'Qwen' in self.cfg.model_path:
-            self.title = mp[mp.find('Qwen'):]+'_'+self.title
+        elif 'Qwen2.5' in self.cfg.model_path:
+            self.title = mp[mp.find('Qwen2.5'):]+'_'+self.title
         else:
             raise ValueError(f'Unsupport base model type from path {self.cfg.model_path}')
 
@@ -403,9 +403,9 @@ class Trainer:
         }
         self.model = TopkSAE(cfg.hidden_size, cfg.latent_size, cfg.k)
         if self.cfg.resume_from is not None:
-            
             self.model.load_state_dict(torch.load(cfg.resume_from, weights_only=False))
             print(f'weights loaded from {cfg.resume_from}')
+
         self.model.to(self.device)
         self.model.train()
         self.optimizer = Adam(self.model.parameters(), lr=cfg.lr, betas=cfg.betas)
