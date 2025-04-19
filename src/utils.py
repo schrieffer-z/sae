@@ -406,7 +406,7 @@ class Trainer:
             self.model.load_state_dict(torch.load(cfg.resume_from, weights_only=False))
             print(f'weights loaded from {cfg.resume_from}')
 
-        self.model.to(self.device)
+        self.model.to(torch.bfloat16).to(self.device)
         self.model.train()
         self.optimizer = Adam(self.model.parameters(), lr=cfg.lr, betas=cfg.betas)
         
