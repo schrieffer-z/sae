@@ -151,7 +151,7 @@ class OpenWebTextDataset(Dataset):
 
         a = np.array(sent_token_num)
         print('Sentence Lens Quantile'.center(80, '='))
-        print(np.quantile(a,[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1]))
+        print(np.quantile(a,[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.91,0.92,0.93,0.94,0.95,0.96,0.97,0.98,0.99,1]))
 
         return data
 
