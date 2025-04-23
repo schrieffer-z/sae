@@ -38,7 +38,7 @@ for sequence_or_token in "token"; do
                 --sequence_or_token $sequence_or_token \
                 --dataset_name $dataset_name \
                 --pipe_data_path $train_data_path $eval_data_path $apply_data_path --layer $layer --latent_size $latent_size \
-                --batch_size $batch_size --max_length $batch_size --lr 5e-4 --betas 0.9 0.999 --num_epochs 1 --seed 42 --steps 10 --use_wandb 1 \
+                --batch_size $batch_size --max_length $max_length --lr 5e-4 --betas 0.9 0.999 --num_epochs 1 --seed 42 --steps 10 --use_wandb 1 \
                 --pipe_project $train_project $eval_project $pipe_project --device $device --k $k \
                 --api_base $api_base --api_key $api_key --api_version $api_version --engine $engine
         done
