@@ -453,7 +453,6 @@ class Trainer:
                 else:
                     print(f'Epoch: {epoch+1}, Batch: {batch_idx+1}, Loss: {curr_loss}')
                 
-                np.round(24226*np.linspace(0,1,11))
                 save_ats = np.round(len(self.dataloader)*np.linspace(0,1,11))[1:-1].astype(np.int64)
                 if self.cfg.pipe_data_path[0].split('/')[-1]=='100M' and (global_step_idx in save_ats):
                     idx = np.arange(1,10)[save_ats==global_step_idx].item()
