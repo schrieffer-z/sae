@@ -4,6 +4,8 @@ import time
 import nltk
 import json
 import yaml
+import math
+import numpy as np
 import torch
 import heapq
 import wandb
@@ -418,6 +420,7 @@ class Trainer:
         if self.cfg.use_wandb:
             wandb_init(self.cfg.wandb_project, self.config_dict, self.title)
         curr_loss = 0.0
+        global_step_idx = 0
         unit_norm_decoder(self.model)
         for epoch in range(self.cfg.num_epochs):
             for batch_idx, batch in tqdm(enumerate(self.dataloader), total=len(self.dataloader), desc="SAE training"):
@@ -440,6 +443,7 @@ class Trainer:
                 loss.backward()
                 self.optimizer.step()
                 self.scheduler.step()
+                global_step_idx+=1
                 
                 curr_loss = loss.item()
                 if batch_idx % self.cfg.steps == 0:
@@ -448,6 +452,19 @@ class Trainer:
                     wandb.log({'Normalized_MSE': curr_loss})
                 else:
                     print(f'Epoch: {epoch+1}, Batch: {batch_idx+1}, Loss: {curr_loss}')
+                
+                np.round(24226*np.linspace(0,1,11))
+                save_ats = np.round(len(self.dataloader)*np.linspace(0,1,11))[1:-1].astype(np.int64)
+                if self.cfg.pipe_data_path[0].split('/')[-1]=='100M' and (global_step_idx in save_ats):
+                    idx = np.arange(1,10)[save_ats==global_step_idx].item()
+                    
+                    title = f'{self.cfg.sequence_or_token}_Latent{self.cfg.latent_size}_Layer{self.cfg.layer}_K{self.cfg.k}_{idx}M'
+                    mp=self.cfg.model_path
+                    if 'Llama' in self.cfg.model_path:
+                        title = mp[mp.find('Llama'):]+'_'+title
+                    elif 'Qwen2.5' in self.cfg.model_path:
+                        title = mp[mp.find('Qwen2.5'):]+'_'+title
+                    torch.save(self.model.state_dict(), f'../SAE_models/{title}.pt')
         
         if self.cfg.use_wandb:
             wandb.finish()
