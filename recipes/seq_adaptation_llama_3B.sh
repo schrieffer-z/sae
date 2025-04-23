@@ -19,7 +19,7 @@ eval_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/Skywork-eval
 apply_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/Skywork-eval
 
 # LM backbone for hidden state
-model=meta/Llama-3.2-1B-Instruct
+model=meta/Llama-3.2-3B-Instruct
 model_path_prefix=/mnt/finder/lisihang/models/
 
 # SAE Training Setting
@@ -33,41 +33,6 @@ resume_froms+=(../SAE_models/token_Latent16384_Layer8_K32_1B_10M)
 resume_froms+=(../SAE_models/token_Latent16384_Layer12_K64_1B_10M)
 
 for resume_from in ${resume_froms[@]}; do
-    if echo "$model" | grep -q "1B";then
-        model_size=1B
-        hidden_size=2048
-        latent_size=16384
-    elif echo "$model" | grep -q "3B";then
-        model_size=3B
-        hidden_size=3072
-        latent_size=24576
-    fi
-    if echo "$resume_from" | grep -q "K32";then
-        k=32
-    elif echo "$resume_from" | grep -q "K64";then
-        k=64
-    elif echo "$resume_from" | grep -q "K96";then
-        k=96
-    elif echo "$resume_from" | grep -q "K144";then
-        k=144
-    elif echo "$resume_from" | grep -q "K192";then
-        k=192
-    fi
-
-    if echo "$resume_from" | grep -q "Layer8";then
-        layer=8
-    elif echo "$resume_from" | grep -q "Layer12";then
-        layer=12
-    elif echo "$resume_from" | grep -q "Layer16";then
-        layer=16
-    elif echo "$resume_from" | grep -q "Layer7";then
-        layer=7
-    elif echo "$resume_from" | grep -q "Layer14";then
-        layer=14
-    elif echo "$resume_from" | grep -q "Layer21";then
-        layer=21
-    fi
-
     echo $sequence_or_token, $layer, $k
     echo $model_size, $hidden_size, $latent_size
     python -u main.py --model_size $model_size --model_path $model_path_prefix$model --hidden_size $hidden_size \

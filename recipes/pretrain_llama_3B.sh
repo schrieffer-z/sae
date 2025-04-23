@@ -33,7 +33,7 @@ for sequence_or_token in "token"; do
     for layer in 14 18 21; do
         for k in 64 128 192 256; do
             echo $sequence_or_token, $layer, $k
-            echo $model_size, $hidden_size, $latent_size
+            echo $hidden_size, $latent_size
             python -u main.py --model_path $model_path_prefix$model --hidden_size $hidden_size \
                 --sequence_or_token $sequence_or_token \
                 --dataset_name $dataset_name \
