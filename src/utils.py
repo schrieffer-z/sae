@@ -458,7 +458,7 @@ class Trainer:
                 if self.cfg.pipe_data_path[0].split('/')[-1]=='100M' and (global_step_idx in save_ats):
                     idx = np.arange(1,10)[save_ats==global_step_idx].item()
                     
-                    title = f'{self.cfg.sequence_or_token}_Latent{self.cfg.latent_size}_Layer{self.cfg.layer}_K{self.cfg.k}_{idx}M'
+                    title = f'{self.cfg.sequence_or_token}_Latent{self.cfg.latent_size}_Layer{self.cfg.layer}_K{self.cfg.k}_{idx*10}M'
                     mp=self.cfg.model_path
                     if 'Llama' in self.cfg.model_path:
                         title = mp[mp.find('Llama'):]+'_'+title
