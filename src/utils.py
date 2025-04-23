@@ -172,35 +172,8 @@ class SkyworkPreferenceDataset(Dataset):
         self.max_length = max_length
         self.pref_data_path = pref_data_path
         self.data = self.load_data()
-        ck=0
 
     def load_data(self):
-        # for i in range(len(ds)):
-        #     prompt1 = self.tokenizer.apply_chat_template(ds[i]['chosen'], tokenize=False, add_generation_prompt=False).replace(self.tokenizer.bos_token, "")
-        #     prompt2 = self.tokenizer.apply_chat_template(ds[i]['rejected'], tokenize=False, add_generation_prompt=False).replace(self.tokenizer.bos_token, "")
-        #     tokenized_p1 = self.tokenizer(prompt1, return_tensors='pt', max_length=self.max_length, padding='max_length', truncation=True)
-        #     tokenized_p2 = self.tokenizer(prompt2, return_tensors='pt', max_length=self.max_length, padding='max_length', truncation=True)
-        #     ret.append({
-        #         'input_ids': tokenized_p1['input_ids'],
-        #         'attention_mask': tokenized_p1['attention_mask'],
-        #     })
-        #     ret.append({
-        #         'input_ids': tokenized_p1['input_ids'],
-        #         'attention_mask': tokenized_p2['attention_mask'],
-        #     })
-        #     seq_len1 = torch.max(tokenized_p1['attention_mask']*torch.arange(self.max_length), dim=1).values
-        #     seq_len2 = torch.max(tokenized_p2['attention_mask']*torch.arange(self.max_length), dim=1).values
-        #     sent_token_num.append(seq_len1.item())
-        #     sent_token_num.append(seq_len2.item())
-        # a = np.array(sent_token_num)
-        # print('Sentence Lens Quantile'.center(80, '='))
-        # print(np.quantile(a,[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.91, 0.92, 0.93, 0.94, 0.95, 0.96, 0.97, 0.98, 0.99, 1]))
-        # 
-        # for f in ds_spilit:
-        #     prompt = self.tokenizer.apply_chat_template(
-        #         f['text'], tokenize=True, add_generation_prompt=False)
-        #     sent_token_num.append(len(prompt))
-        
         ds = datasets.load_dataset('parquet', data_dir=self.pref_data_path)['train'].shuffle(seed=42)
         tokenizer = self.tokenizer
         def tokenize(sample):
