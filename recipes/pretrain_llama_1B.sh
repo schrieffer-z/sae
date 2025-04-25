@@ -25,22 +25,20 @@ model=meta/Llama-3.2-1B-Instruct
 model_path_prefix=/mnt/finder/lisihang/models/
 
 # SAE Training Setting
+device=cuda:0 
+layer=12
+k=128
 batch_size=64
 max_length=96
-device=cuda:0
 
-for sequence_or_token in "token"; do
-    for layer in 8 10 12; do
-        for k in 32 64 96 128; do
-            echo $sequence_or_token, $layer, $k
-            echo $hidden_size, $latent_size
-            python -u main.py --model_path $model_path_prefix$model --hidden_size $hidden_size \
-                --sequence_or_token $sequence_or_token \
-                --dataset_name $dataset_name \
-                --pipe_data_path $train_data_path $eval_data_path $apply_data_path --layer $layer --latent_size $latent_size \
-                --batch_size $batch_size --max_length $max_length --lr 5e-4 --betas 0.9 0.999 --num_epochs 1 --seed 42 --steps 10 --use_wandb 1 \
-                --pipe_project $train_project $eval_project $pipe_project --device $device --k $k \
-                --api_base $api_base --api_key $api_key --api_version $api_version --engine $engine
-        done
-    done
-done
+
+echo $sequence_or_token, $layer, $k
+echo $hidden_size, $latent_size
+python -u main.py --model_path $model_path_prefix$model --hidden_size $hidden_size \
+    --sequence_or_token token \
+    --dataset_name $dataset_name \
+    --pipe_data_path $train_data_path $eval_data_path $apply_data_path --layer $layer --latent_size $latent_size \
+    --batch_size $batch_size --max_length $max_length --lr 5e-4 --betas 0.9 0.999 --num_epochs 1 --seed 42 --steps 10 --use_wandb 1 \
+    --pipe_project $train_project $eval_project $pipe_project --device $device --k $k \
+    --api_base $api_base --api_key $api_key --api_version $api_version --engine $engine
+
