@@ -365,6 +365,8 @@ class Trainer:
             self.title = mp[mp.find('Llama'):]+'_'+self.title
         elif 'Qwen2.5' in self.cfg.model_path:
             self.title = mp[mp.find('Qwen2.5'):]+'_'+self.title
+        elif 'gemma-2' in self.cfg.model_path:
+            self.title = mp[mp.find('gemma-2'):]+'_'+self.title
         else:
             raise ValueError(f'Unsupport base model type from path {self.cfg.model_path}')
 
@@ -436,6 +438,8 @@ class Trainer:
                         title = mp[mp.find('Llama'):]+'_'+title
                     elif 'Qwen2.5' in self.cfg.model_path:
                         title = mp[mp.find('Qwen2.5'):]+'_'+title
+                    elif 'gemma-2' in self.cfg.model_path:
+                        self.title = mp[mp.find('gemma-2'):]+'_'+self.title
                     torch.save(self.model.state_dict(), f'../SAE_models/{title}.pt')
         
         if self.cfg.use_wandb:
@@ -450,7 +454,7 @@ class Evaluater:
         self.cfg = cfg
         self.device = torch.device(cfg.device)
         self.tokenizer, self.language_model = get_language_model(cfg.model_path, self.device)
-        self.dataloader = create_dataloader(cfg.sequence_or_token, cfg.data_path, self.tokenizer, cfg.batch_size, cfg.max_length)
+        self.dataloader = create_dataloader(cfg.dataset_name, cfg.data_path, self.tokenizer, cfg.batch_size, cfg.max_length)
         self.title = f'{os.path.splitext(os.path.basename(cfg.SAE_path))[0]}_{os.path.basename(cfg.data_path)}_{cfg.metric}'
         self.config_dict = {
             'batch_size': self.cfg.batch_size,
@@ -621,7 +625,7 @@ class SeqApplier:
                 heapq.heappop(heap)
 
         self.tokenizer, self.language_model = get_language_model(self.cfg.model_path, self.device)
-        self.dataloader = create_dataloader(self.cfg.sequence_or_token, self.cfg.data_path, self.tokenizer, self.cfg.batch_size, self.cfg.max_length)
+        self.dataloader = create_dataloader(self.cfg.dataset_name, self.cfg.data_path, self.tokenizer, self.cfg.batch_size, self.cfg.max_length)
         
         for batch_idx, batch in tqdm(enumerate(self.dataloader), total=len(self.dataloader)):
             input_ids, _, _, hidden_states = get_outputs(self.cfg, batch, self.language_model, self.device)
@@ -770,7 +774,7 @@ class Applier:
                 heapq.heappop(heap)
 
         self.tokenizer, self.language_model = get_language_model(self.cfg.model_path, self.device)
-        self.dataloader = create_dataloader(self.cfg.sequence_or_token, self.cfg.data_path, self.tokenizer, self.cfg.batch_size, self.cfg.max_length)
+        self.dataloader = create_dataloader(self.cfg.dataset_name, self.cfg.data_path, self.tokenizer, self.cfg.batch_size, self.cfg.max_length)
         
         for batch_idx, batch in tqdm(enumerate(self.dataloader), total=len(self.dataloader), desc="SAE applying"):
             input_ids, _, _, hidden_states = get_outputs(self.cfg, batch, self.language_model, self.device)
@@ -998,6 +1002,8 @@ class SAE_pipeline:
             self.title = mp[mp.find('Llama'):]+'_'+self.title
         elif 'Qwen' in self.cfg.model_path:
             self.title = mp[mp.find('Qwen'):]+'_'+self.title
+        elif 'gemma-2' in self.cfg.model_path:
+            self.title = mp[mp.find('gemma-2'):]+'_'+self.title
         else:
             raise ValueError(f'Unsupport base model type from path {self.cfg.model_path}')
         self.cfg.SAE_path = f'../SAE_models/{self.title}.pt'
