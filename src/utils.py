@@ -273,7 +273,12 @@ def get_outputs(
     input_ids = input_ids.to(device)
     attention_mask = attention_mask.to(device)
     with torch.no_grad():
-        outputs = language_model(input_ids=input_ids, attention_mask=attention_mask)
+        add_args = {}
+        if 'gemma' in cfg.model_path:
+            add_args.update({
+                'output_hidden_states': True
+            })
+        outputs = language_model(input_ids=input_ids, attention_mask=attention_mask, **add_args)
         hidden_states = outputs.hidden_states[cfg.layer]
 
     return input_ids, attention_mask, outputs, hidden_states
@@ -365,8 +370,8 @@ class Trainer:
             self.title = mp[mp.find('Llama'):]+'_'+self.title
         elif 'Qwen2.5' in self.cfg.model_path:
             self.title = mp[mp.find('Qwen2.5'):]+'_'+self.title
-        elif 'gemma-2' in self.cfg.model_path:
-            self.title = mp[mp.find('gemma-2'):]+'_'+self.title
+        elif 'gemma' in self.cfg.model_path:
+            self.title = mp[mp.find('gemma'):]+'_'+self.title
         else:
             raise ValueError(f'Unsupport base model type from path {self.cfg.model_path}')
 
@@ -429,17 +434,17 @@ class Trainer:
                     print(f'Epoch: {epoch+1}, Batch: {batch_idx+1}, Loss: {curr_loss}')
                 
                 save_ats = np.round(len(self.dataloader)*np.linspace(0,1,11))[1:-1].astype(np.int64)
-                if self.cfg.pipe_data_path[0].split('/')[-1]=='10M' and (global_step_idx in save_ats):
+                if self.cfg.pipe_data_path[0].split('/')[-1]=='100M' and (global_step_idx in save_ats):
                     idx = np.arange(1,10)[save_ats==global_step_idx].item()
                     
-                    title = f'{self.cfg.sequence_or_token}_Latent{self.cfg.latent_size}_Layer{self.cfg.layer}_K{self.cfg.k}_{idx}M'
+                    title = f'{self.cfg.sequence_or_token}_Latent{self.cfg.latent_size}_Layer{self.cfg.layer}_K{self.cfg.k}_{idx*10}M'
                     mp=self.cfg.model_path
                     if 'Llama' in self.cfg.model_path:
                         title = mp[mp.find('Llama'):]+'_'+title
                     elif 'Qwen2.5' in self.cfg.model_path:
                         title = mp[mp.find('Qwen2.5'):]+'_'+title
-                    elif 'gemma-2' in self.cfg.model_path:
-                        self.title = mp[mp.find('gemma-2'):]+'_'+self.title
+                    elif 'gemma' in self.cfg.model_path:
+                        title = mp[mp.find('gemma'):]+'_'+title
                     torch.save(self.model.state_dict(), f'../SAE_models/{title}.pt')
         
         if self.cfg.use_wandb:
@@ -1002,8 +1007,8 @@ class SAE_pipeline:
             self.title = mp[mp.find('Llama'):]+'_'+self.title
         elif 'Qwen' in self.cfg.model_path:
             self.title = mp[mp.find('Qwen'):]+'_'+self.title
-        elif 'gemma-2' in self.cfg.model_path:
-            self.title = mp[mp.find('gemma-2'):]+'_'+self.title
+        elif 'gemma' in self.cfg.model_path:
+            self.title = mp[mp.find('gemma'):]+'_'+self.title
         else:
             raise ValueError(f'Unsupport base model type from path {self.cfg.model_path}')
         self.cfg.SAE_path = f'../SAE_models/{self.title}.pt'
