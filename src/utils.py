@@ -61,7 +61,7 @@ def parse_args():
     parser.add_argument('--api_version', type=str, required=False, help='OpenAI api version')
     parser.add_argument('--engine', type=str, required=False, help='OpenAI api engine (e.g., "gpt-4o", "gpt-4o-mini")')
 
-    parser.add_argument('--pipe_run', type=str, required=True, required=False, help='0000:nothing, train, evaluate, apply, interpret')
+    parser.add_argument('--pipe_run', type=str, required=True, help='0000:nothing, train, evaluate, apply, interpret')
     parser.add_argument('--pipe_data_path', type=str, nargs='+', required=False, help='Path to the pipe dataset: train, eval and apply')
     parser.add_argument('--pipe_project', type=str, nargs='+', required=False, help='Wandb project name for pipe: train, eval and pipe')
 
