@@ -398,6 +398,7 @@ class Trainer:
         self.scheduler = LinearWarmupLR(self.optimizer, num_warmup_steps, num_training_steps, cfg.lr)
 
     def run(self):
+        print(self.cfg.use_wandb)
         if self.cfg.use_wandb:
             wandb_init(self.cfg.wandb_project, self.config_dict, self.title)
         curr_loss = 0.0
