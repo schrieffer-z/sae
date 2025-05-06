@@ -1,8 +1,8 @@
 cd src
 
 # GPT interpret Setting
-api_base=https://dplc-8.openai.azure.com/
-api_key=DcuVRqY7eBsgOHcO5IvvRShkDKlWhJEDm2ZRHHU2Ja3O8c3HBvT4JQQJ99AKACHrzpqXJ3w3AAABACOGvoip
+api_base=...
+api_key=...
 api_version=2024-03-01-preview
 engine=gpt-4o
 
@@ -10,7 +10,7 @@ engine=gpt-4o
 train_project=SAE4RM-train-SAE
 eval_project=SAE4RM-eval-SAE
 pipe_project=SAE4RM-pipe-SAE
-export WANDB_API_KEY='ac8217b0848b0b74ed1f9abd8bee6b09afcc7b5c'
+export WANDB_API_KEY=...
 
 # Dataset 
 dataset_name=Skywork-Reward-Preference-80K
