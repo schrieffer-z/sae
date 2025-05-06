@@ -31,6 +31,7 @@ max_length=96
 device=cuda:1
 use_wandb=0
 pipe_run=1000
+output_path=../SAE_models
 
 echo pipe_run:$pipe_run
 echo $sequence_or_token, $layer, $k

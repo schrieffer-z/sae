@@ -62,6 +62,7 @@ def parse_args():
     parser.add_argument('--engine', type=str, required=False, help='OpenAI api engine (e.g., "gpt-4o", "gpt-4o-mini")')
 
     parser.add_argument('--pipe_run', type=str, required=True, help='0000:nothing, train, evaluate, apply, interpret')
+    parser.add_argument('--output_path', type=str, default="../SAE_models", help='0000:nothing, train, evaluate, apply, interpret')
     parser.add_argument('--pipe_data_path', type=str, nargs='+', required=False, help='Path to the pipe dataset: train, eval and apply')
     parser.add_argument('--pipe_project', type=str, nargs='+', required=False, help='Wandb project name for pipe: train, eval and pipe')
 
@@ -378,6 +379,9 @@ class Trainer:
 
         if self.cfg.resume_from is not None:
             self.title = f'{'token' if 'token' in self.cfg.resume_from else 'sequence'}_Adapted_{cfg.sequence_or_token}_Latent{cfg.latent_size}_Layer{cfg.layer}_K{cfg.k}_{cfg.pipe_data_path[0].split("/")[-1]}'
+        
+        assert os.path.exists(self.cfg.output_path)
+        
         self.config_dict = {
             'batch_size': self.cfg.batch_size,
             'num_epochs': self.cfg.num_epochs,
@@ -447,12 +451,12 @@ class Trainer:
                         title = mp[mp.find('Qwen2.5'):]+'_'+title
                     elif 'gemma' in self.cfg.model_path:
                         title = mp[mp.find('gemma'):]+'_'+title
-                    torch.save(self.model.state_dict(), f'../SAE_models/{title}.pt')
+                    torch.save(self.model.state_dict(), os.path.join(self.cfg.output_path, f'{title}.pt'))
         
         if self.cfg.use_wandb:
             wandb.finish()
         unit_norm_decoder(self.model)
-        torch.save(self.model.state_dict(), f'../SAE_models/{self.title}.pt')
+        torch.save(self.model.state_dict(), os.path.join(self.cfg.output_path, f'{self.title}.pt'))
         return curr_loss
 
 
