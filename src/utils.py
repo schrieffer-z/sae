@@ -61,6 +61,7 @@ def parse_args():
     parser.add_argument('--api_version', type=str, required=False, help='OpenAI api version')
     parser.add_argument('--engine', type=str, required=False, help='OpenAI api engine (e.g., "gpt-4o", "gpt-4o-mini")')
 
+    parser.add_argument('--pipe_run', type=str, required=True, required=False, help='0000:nothing, train, evaluate, apply, interpret')
     parser.add_argument('--pipe_data_path', type=str, nargs='+', required=False, help='Path to the pipe dataset: train, eval and apply')
     parser.add_argument('--pipe_project', type=str, nargs='+', required=False, help='Wandb project name for pipe: train, eval and pipe')
 
@@ -601,7 +602,7 @@ class SeqApplier:
 
             context_tokens = context_tokens.copy()
             raw_token = context_tokens[activated_token_idx]
-            context_tokens[activated_token_idx] = f'<ACTIVATED>{raw_token}</ACTIVATED>'
+            # context_tokens[activated_token_idx] = f'<ACTIVATED>{raw_token}</ACTIVATED>'
 
             while context_tokens and context_tokens[0] in ['<|end_of_text|>', ' ', '']:
                 context_tokens.pop(0)
@@ -634,8 +635,13 @@ class SeqApplier:
         
         for batch_idx, batch in tqdm(enumerate(self.dataloader), total=len(self.dataloader)):
             input_ids, _, _, hidden_states = get_outputs(self.cfg, batch, self.language_model, self.device)
-            x, _, _ = pre_process(hidden_states)
+            position_ids = torch.arange(self.cfg.max_length, dtype=torch.long)
+            position_ids = position_ids * batch[1]
+            seq_len = torch.max(position_ids, dim=1).values
+            # hidden_states=(bz, seq_len, d_model) -> (bz, d_model) 选出每个sequence的last token's hidden state
+            hidden_states = torch.concat([hidden_states[i,pos,:].unsqueeze(0) for i,pos in enumerate(seq_len)], dim=0)
 
+            x, _, _ = pre_process(hidden_states)
             latents, _ = self.model(x)
             batch_size, seq_len, _ = latents.shape
             positions = (latents > threshold)
@@ -1053,10 +1059,14 @@ class SAE_pipeline:
     def run(self):
         start_time = time.time()
 
-        self.train()
-        # self.evaluate()
-        # self.apply()
-        # self.interpret()
+        if self.cfg.pipe_run[0]=='1':
+            self.train()
+        if self.cfg.pipe_run[1]=='1':
+            self.evaluate()
+        if self.cfg.pipe_run[2]=='1':
+            self.apply()
+        if self.cfg.pipe_run[3]=='1':
+            self.interpret()
 
         end_time = time.time()
         self.result_dict['Runtime'] = (end_time - start_time) / 3600
