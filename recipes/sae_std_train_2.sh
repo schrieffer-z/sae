@@ -14,16 +14,16 @@ export WANDB_API_KEY='ac8217b0848b0b74ed1f9abd8bee6b09afcc7b5c'
 
 # Dataset 
 dataset_name=OpenWebText
-train_data_path=/NAS/zhangsy/datasets/OpenWebText/50M
-eval_data_path=/NAS/zhangsy/datasets/OpenWebText/testdata
-apply_data_path=/NAS/zhangsy/datasets/OpenWebText/testdata
+train_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/50M
+eval_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/testdata
+apply_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/testdata
 
 # SAE and LM Backbone Model Setting
 k=...
 layer=...
 hidden_size=...
 latent_size=...
-model_path=.../models/google/gemma-2-2b-it/
+model_path=/NAS/zhangsy/models/google/gemma-2-2b-it/
 
 # Training Setting
 batch_size=64
@@ -40,6 +40,7 @@ python -u main.py --model_path $model_path --hidden_size $hidden_size \
     --pipe_run $pipe_run \
     --sequence_or_token token \
     --dataset_name $dataset_name \
+    --output_path $output_path \
     --pipe_data_path $train_data_path $eval_data_path $apply_data_path --layer $layer --latent_size $latent_size \
     --batch_size $batch_size --max_length $max_length --lr 5e-4 --betas 0.9 0.999 --num_epochs 1 --seed 42 --steps 10 --use_wandb $use_wandb \
     --pipe_project $train_project $eval_project $pipe_project --device $device --k $k \
