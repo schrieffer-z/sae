@@ -436,8 +436,6 @@ class Trainer:
                     unit_norm_decoder(self.model)
                 if self.cfg.use_wandb:
                     wandb.log({'Normalized_MSE': curr_loss})
-                else:
-                    print(f'Epoch: {epoch+1}, Batch: {batch_idx+1}, Loss: {curr_loss}')
                 
                 save_ats = np.round(len(self.dataloader)*np.linspace(0,1,11))[1:-1].astype(np.int64)
                 if self.cfg.pipe_data_path[0].split('/')[-1]=='100M' and (global_step_idx in save_ats):
