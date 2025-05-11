@@ -176,13 +176,7 @@ cython_debug/
 
 .vscode/
 wandb/
-data/1B/
-data/10M/
-data/100M/
-data/debug/
-data/Skywork-train
-data/Skywork-eval
-data/testdata/
+data/
 SAE_models/*.pt
 SAE_models/*
 hf.sh
