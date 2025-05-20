@@ -855,23 +855,39 @@ class Interpreter:
     
     def construct_prompt(self, tokens_info: dict) -> str:
         prompt = (
-            'We are analyzing the activation levels of features in a language model, where each feature activates certain tokens in a text.\n'
-            'Each token\'s activation value indicates its relevance to the feature, with higher values showing stronger association.\n'
-            'Your task is to give this feature a monosemanticity score based on the following scoring rubric:\n'
-            'Activation Consistency\n'
-            '5: Clear pattern with no deviating examples\n'
-            '4: Clear pattern with one or two deviating examples\n'
-            '3: Clear overall pattern but quite a few examples not fitting that pattern\n'
-            '2: Broad consistent theme but lacking structure\n'
-            '1: No discernible pattern\n'
-            'Consider the following activations for a feature in the language model.\n\n'
+            "A reward model outputs a scalar representing the quality of a model-generated response. "
+            "Responses with higher scores are more likely to align with human preferences given a particular question.\n\n"
+            
+            "A Sparse Autoencoder (SAE) extracts human-interpretable features from the hidden states of a language model when provided with the concatenation of a question-response pair. "
+            "Ideally, each SAE feature activates only in response to a specific context type.\n\n"
+            
+            "Your task is to analyze whether the activation of a particular SAE feature (indicated by the presence of its corresponding context type) affects the likelihood that humans would prefer the response.\n"
+            
+            "Use the following scoring criteria:\n"
+            "'-2': Activation of this feature (presence of this context) strongly decreases the likelihood of human preference.\n"
+            "'-1': Activation of this feature (presence of this context) moderately decreases the likelihood of human preference.\n"
+            "'0': Activation of this feature (presence of this context) has a neutral effect on human preference.\n"
+            "'1': Activation of this feature (presence of this context) moderately increases the likelihood of human preference.\n"
+            "'2': Activation of this feature (presence of this context) strongly increases the likelihood of human preference.\n\n"
+            
+            "Important Notes:\n"
+            "- SAE feature activations occur when certain context types appear. Therefore, closely analyze the local semantics around the activated token, which is indicated between '<ACTIVATED>' and '</ACTIVATED>' tags.  \n"
+            "- Context before the activated token is particularly significant and should weigh more in your assessment than the context after.\n\n"
+            
+            "Provide your analysis strictly in the format below:\n\n"
+            "Consider the following context in which a particular SAE feature activates:\n\n"
         )
         for info in tokens_info:
-            prompt += f"Token: {info['token']} | Activation: {info['activation']} | Context: {info['context']}\n\n"
+            if "|>" in info['token'] or "<|" in info['token'] :
+                continue
+            ck = "|>\n\n" 
+            if ck in info['context']:
+                s = info['context']
+                info['context'] = s[s.rfind(ck)+len(ck):]
+            prompt += f"Token: {info['token']} | Context: {info['context']}\n\n"
         prompt += (
             'Provide your response in the following fixed format:\n'
-            'Score: [5/4/3/2/1]\n'
-            'Explanation: [Your brief explanation]\n'
+            "Score: [-2/-1/0/1/2]"
         )
         return prompt
 
@@ -920,6 +936,14 @@ class Interpreter:
         sampled_indices = random.sample(range(len(all_latents)), sample_size)
         sampled_latents = [all_latents[i] for i in sorted(sampled_indices)]
 
+        sampled_latents=[]
+        latents = torch.load('../latents.pt')
+        latents_of_rm = [str(i.item()) for i in latents]
+        for f in latents_of_rm:
+            if f in all_latents:
+                sampled_latents.append(f)
+                
+
         client = AzureOpenAI(
             azure_endpoint=self.cfg.api_base,
             api_version=self.cfg.api_version,
@@ -931,13 +955,7 @@ class Interpreter:
         total_score = 0.0
         scored_features = 0
 
-        pattern = re.compile(
-            r"Score:\s*(?P<score>[1-5])\s*\n"
-            r"Explanation:\s*(?P<explanation>.+)",
-            re.IGNORECASE | re.DOTALL,
-        )
-
-        for latent in sampled_latents:
+        for latent in tqdm(sampled_latents):
             try:
                 latent_id = int(latent)
             except ValueError:
@@ -954,6 +972,7 @@ class Interpreter:
                     token = token_class
                     if token.startswith('ġ'):
                         token = ' ' + token[1:]
+
                     tokens_info.append({
                         'token': token,
                         'context': context['context'],
@@ -964,14 +983,13 @@ class Interpreter:
             try:
                 response = self.chat_completion(client, prompt)
                 cost += self.calculate_cost(prompt, response)
-                match = pattern.search(response)
+                match = re.search(r"-?\d+", response)
                 if match:
-                    score = int(match.group('score'))
-                    explanation = match.group('explanation').strip()
-                    if 1 <= score <= 5:
+                    score = int(match.group(0))
+                    if -2 <= score <= 2:
                         results[latent_id] = {
                             'score': score,
-                            'explanation': explanation,
+                            'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))]
                         }
                         total_score += score
                         scored_features += 1
@@ -1053,9 +1071,11 @@ class SAE_pipeline:
         torch.cuda.empty_cache
 
     def interpret(self):
+        if self.cfg.pipe_run[2]=='0':
+            self.context_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_15.json'
         self.cfg.data_path = self.context_path
         interpreter = Interpreter(self.cfg)
-        score = interpreter.run(sample_latents=100)
+        score = interpreter.run(sample_latents=500)
         self.result_dict[f'Score'] = score
         del interpreter
 
