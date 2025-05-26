@@ -26,6 +26,7 @@ latent_size=...
 model_path=/mnt/finder/lisihang/models/google/gemma-2-2b-it/
 
 # Training Setting
+sequence_or_token=token
 batch_size=64
 max_length=96
 device=cuda:1

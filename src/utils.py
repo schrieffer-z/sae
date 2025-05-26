@@ -16,7 +16,6 @@ import argparse
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-from model import *
 from typing import List, Union
 from tqdm import tqdm
 from torch.optim import Adam
@@ -27,6 +26,8 @@ from torch.utils.hooks import RemovableHandle
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 
+# local
+from model import *
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Configuration on sparse autoencoders pipeline')
@@ -251,7 +252,7 @@ def wandb_init(project: str, config: dict, name: str) -> None:
     )
 
 
-def get_language_model(model_path: str, device: torch.device) -> tuple:
+def get_language_model(cfg, model_path: str, device: torch.device) -> tuple:
     '''
     Loads and returns a tokenizer and a language model from the specified model path.
     '''
@@ -259,8 +260,8 @@ def get_language_model(model_path: str, device: torch.device) -> tuple:
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    language_model = AutoModelForCausalLM.from_pretrained(
-        model_path, trust_remote_code=True, return_dict_in_generate=True, output_hidden_states=True, torch_dtype=torch.bfloat16
+    language_model = MyLlamaModel.from_pretrained(
+        model_path, hidden_state_source_layer=cfg.layer,trust_remote_code=True, return_dict_in_generate=True, output_hidden_states=True, torch_dtype=torch.bfloat16
     ).to(device)
     return tokenizer, language_model
 
@@ -275,12 +276,7 @@ def get_outputs(
     input_ids = input_ids.to(device)
     attention_mask = attention_mask.to(device)
     with torch.no_grad():
-        add_args = {}
-        if 'gemma' in cfg.model_path:
-            add_args.update({
-                'output_hidden_states': True
-            })
-        outputs = language_model(input_ids=input_ids, attention_mask=attention_mask, **add_args)
+        outputs = language_model(input_ids=input_ids, attention_mask=attention_mask)
         hidden_states = outputs.hidden_states[cfg.layer]
 
     return input_ids, attention_mask, outputs, hidden_states
@@ -363,7 +359,7 @@ class Trainer:
     def __init__(self, cfg):
         self.cfg = cfg
         self.device = torch.device(cfg.device)
-        self.tokenizer, self.language_model = get_language_model(cfg.model_path, self.device)
+        self.tokenizer, self.language_model = get_language_model(cfg, cfg.model_path, self.device)
         self.dataloader = create_dataloader(cfg.dataset_name ,cfg.data_path, self.tokenizer, cfg.batch_size, cfg.max_length)
         self.title = f'{cfg.sequence_or_token}_Latent{cfg.latent_size}_Layer{cfg.layer}_K{cfg.k}_{cfg.pipe_data_path[0].split('/')[-1]}'
         
@@ -462,7 +458,7 @@ class Evaluater:
     def __init__(self, cfg):
         self.cfg = cfg
         self.device = torch.device(cfg.device)
-        self.tokenizer, self.language_model = get_language_model(cfg.model_path, self.device)
+        self.tokenizer, self.language_model = get_language_model(cfg, cfg.model_path, self.device)
         self.dataloader = create_dataloader(cfg.dataset_name, cfg.data_path, self.tokenizer, cfg.batch_size, cfg.max_length)
         self.title = f'{os.path.splitext(os.path.basename(cfg.SAE_path))[0]}_{os.path.basename(cfg.data_path)}_{cfg.metric}'
         self.config_dict = {
@@ -533,160 +529,6 @@ class Evaluater:
             wandb.finish()
         return self.total_loss / self.num_batches
 
-
-
-class SeqApplier:
-    def __init__(self, cfg):
-        self.cfg = cfg
-        self.device = torch.device(cfg.device)
-        self.model = TopkSAE(cfg.hidden_size, cfg.latent_size, cfg.k)
-        self.model.load_state_dict(torch.load(cfg.SAE_path, weights_only=True, map_location=self.device))
-        self.model.to(self.device)
-        self.model.eval()
-        
-    def validate_triples(self, triple_list: List[tuple[int, float, int]], name: str) -> None:
-        if triple_list is not None:
-            for i, (a, b, c) in enumerate(triple_list):
-                if not (0 <= a < self.cfg.latent_size):
-                    raise ValueError(f'Element {a} in {name} at index {i} is out of latent size range [0, {self.cfg.latent_size}).')
-                if b <= 0:
-                    raise ValueError(f'Value {b} in {name} at index {i} is not bigger than zero')
-                if c not in [0, 1]:
-                    raise ValueError(f'Mode {c} in {name} at index {i} must be 0 or 1.')
-                
-    @torch.no_grad()
-    def get_context(
-        self, 
-        threshold: float = 10.0, 
-        max_length: int = 64, 
-        max_per_token: int = 2, 
-        lines: int = 4,  
-        output_path=None
-    ):
-    # get_context 需要修改，仅针对特定的latents进行context提取。
-        if output_path is None:
-            output_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}.json'
-
-        sentence_enders = {'.', '!', '?', '<|end_of_text|>', '"'}
-        half_length = max_length // 2
-
-        latent_context_map = defaultdict(lambda: defaultdict(list))
-
-        def find_sentence_bounds(seq_pos: int, tokens: List[str]):
-            start_pos = seq_pos
-            while start_pos > 0 and tokens[start_pos - 1] not in sentence_enders:
-                start_pos -= 1
-            end_pos = seq_pos
-            while end_pos < len(tokens) - 1 and tokens[end_pos] not in sentence_enders:
-                end_pos += 1
-            if end_pos < len(tokens):
-                end_pos += 1  
-            return start_pos, end_pos
-
-        def process_and_store_context(
-            latent_dim: int, seq_pos: int, activation_value: float, tokens: List[str]
-        ):
-            start_pos, end_pos = find_sentence_bounds(seq_pos, tokens)
-            sentence_tokens = tokens[start_pos:end_pos]
-            sentence_length = len(sentence_tokens)
-
-            if sentence_length > max_length:
-                activated_token_idx = seq_pos - start_pos
-                left_context_start = max(0, activated_token_idx - half_length)
-                right_context_end = min(sentence_length, activated_token_idx + half_length + 1)
-                context_tokens = sentence_tokens[left_context_start:right_context_end]
-                activated_token_idx -= left_context_start
-            else:
-                context_tokens = sentence_tokens
-                activated_token_idx = seq_pos - start_pos
-
-            if not (0 <= activated_token_idx < len(context_tokens)):
-                return
-
-            context_tokens = context_tokens.copy()
-            raw_token = context_tokens[activated_token_idx]
-            # context_tokens[activated_token_idx] = f'<ACTIVATED>{raw_token}</ACTIVATED>'
-
-            while context_tokens and context_tokens[0] in ['<|end_of_text|>', ' ', '']:
-                context_tokens.pop(0)
-                activated_token_idx -= 1
-            while context_tokens and context_tokens[-1] in ['<|end_of_text|>', ' ', '']:
-                context_tokens.pop()
-
-            if not context_tokens or not (0 <= activated_token_idx < len(context_tokens)):
-                return
-
-            context_text = self.tokenizer.convert_tokens_to_string(context_tokens).strip().strip('"')
-            if not context_text:
-                return
-
-            activated_token_str = context_tokens[activated_token_idx]
-            if activated_token_str.startswith('<ACTIVATED>') and activated_token_str.endswith('</ACTIVATED>'):
-                raw_token = activated_token_str[len('<ACTIVATED>'):-len('</ACTIVATED>')].strip()
-            else:
-                raw_token = activated_token_str.strip()
-
-            token_class = raw_token.lower()
-
-            heap = latent_context_map[latent_dim][token_class]
-            heapq.heappush(heap, (activation_value, context_text))
-            if len(heap) > max_per_token:
-                heapq.heappop(heap)
-
-        self.tokenizer, self.language_model = get_language_model(self.cfg.model_path, self.device)
-        self.dataloader = create_dataloader(self.cfg.dataset_name, self.cfg.data_path, self.tokenizer, self.cfg.batch_size, self.cfg.max_length)
-        
-        for batch_idx, batch in tqdm(enumerate(self.dataloader), total=len(self.dataloader)):
-            input_ids, _, _, hidden_states = get_outputs(self.cfg, batch, self.language_model, self.device)
-            position_ids = torch.arange(self.cfg.max_length, dtype=torch.long)
-            position_ids = position_ids * batch[1]
-            seq_len = torch.max(position_ids, dim=1).values
-            # hidden_states=(bz, seq_len, d_model) -> (bz, d_model) 选出每个sequence的last token's hidden state
-            hidden_states = torch.concat([hidden_states[i,pos,:].unsqueeze(0) for i,pos in enumerate(seq_len)], dim=0)
-
-            x, _, _ = pre_process(hidden_states)
-            latents, _ = self.model(x)
-            batch_size, seq_len, _ = latents.shape
-            positions = (latents > threshold)
-
-            for i in range(batch_size):
-                tokens = self.tokenizer.convert_ids_to_tokens(input_ids[i])
-                latent_indices = torch.nonzero(positions[i], as_tuple=False)
-
-                for activation in latent_indices:
-                    seq_pos, latent_dim = activation.tolist()
-                    activation_value = latents[i, seq_pos, latent_dim].item()
-                    process_and_store_context(latent_dim, seq_pos, activation_value, tokens)
-
-        filtered_latent_context = {}
-        for latent_dim, token_dict in latent_context_map.items():
-            # # Skip latent token categories exceeding 32
-            if len(token_dict) > 32:
-                continue    
-            total_contexts = sum(len(contexts) for contexts in token_dict.values())
-            if total_contexts > lines:
-                sorted_token_dict = {}
-                for t_class, heap in token_dict.items():
-                    contexts_list = list(heap)
-                    contexts_list.sort(key=lambda x: x[0], reverse=True)
-                    sorted_token_dict[t_class] = [
-                        {'context': ctx, 'activation': act} for act, ctx in contexts_list
-                    ]
-                filtered_latent_context[latent_dim] = dict(sorted(sorted_token_dict.items()))
-
-        total_latents = len(filtered_latent_context)
-        sorted_latent_context = dict(sorted(filtered_latent_context.items()))
-
-        output_data = {
-            'total_latents': total_latents,
-            'threshold': threshold,
-            'max_length': max_length,
-            'max_per_token': max_per_token,
-            'lines': lines,
-            'latent_context_map': sorted_latent_context,
-        }
-        save_json(output_data, output_path)
-        return total_latents, output_path
 
 
 class Applier:
@@ -787,7 +629,7 @@ class Applier:
             if len(heap) > max_per_token:
                 heapq.heappop(heap)
 
-        self.tokenizer, self.language_model = get_language_model(self.cfg.model_path, self.device)
+        self.tokenizer, self.language_model = get_language_model(self.cfg, self.cfg.model_path, self.device)
         self.dataloader = create_dataloader(self.cfg.dataset_name, self.cfg.data_path, self.tokenizer, self.cfg.batch_size, self.cfg.max_length)
         
         for batch_idx, batch in tqdm(enumerate(self.dataloader), total=len(self.dataloader), desc="SAE applying"):
