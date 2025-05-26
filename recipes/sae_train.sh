@@ -27,6 +27,8 @@ model_path=/mnt/finder/lisihang/models/google/gemma-2-2b-it/
 
 # Training Setting
 sequence_or_token=token
+apply_threshold=3
+
 batch_size=64
 max_length=96
 device=cuda:1
@@ -39,7 +41,8 @@ echo $sequence_or_token, $layer, $k
 echo $hidden_size, $latent_size
 python -u main.py --model_path $model_path --hidden_size $hidden_size \
     --pipe_run $pipe_run \
-    --sequence_or_token token \
+    --sequence_or_token $sequence_or_token \
+    --apply_threshold $apply_threshold \
     --dataset_name $dataset_name \
     --output_path $output_path \
     --pipe_data_path $train_data_path $eval_data_path $apply_data_path --layer $layer --latent_size $latent_size \

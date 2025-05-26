@@ -53,6 +53,7 @@ def parse_args():
     parser.add_argument('--steps', type=int, required=False, help='Number of step batches for unit norm decoder')
 
 
+    parser.add_argument('--apply_threshold', type=float, required=False)
     parser.add_argument('--resume_from', type=str, required=False, help='Path to a pretrained SAE state dict')
     parser.add_argument('--SAE_path', type=str, required=False, help='Path to the trained SAE model file')
     parser.add_argument('--metric', type=str, required=False, help='Evaluation metric (e.g., "NormMSE", "DeltaCE", "KLDiv")')
@@ -403,6 +404,7 @@ class Trainer:
             wandb_init(self.cfg.wandb_project, self.config_dict, self.title)
         curr_loss = 0.0
         global_step_idx = 0
+        num_trained_tokens = 0
         unit_norm_decoder(self.model)
         for epoch in range(self.cfg.num_epochs):
             for batch_idx, batch in tqdm(enumerate(self.dataloader), total=len(self.dataloader), desc="SAE training"):
@@ -414,9 +416,20 @@ class Trainer:
                     position_ids = position_ids * batch[1]
                     seq_len = torch.max(position_ids, dim=1).values
 
-                    # hidden_states=(bz, seq_len, d_model) -> (bz, d_model) 选出每个sequence的last token's hidden state
-                    hidden_states = torch.concat([hidden_states[i,pos,:].unsqueeze(0) for i,pos in enumerate(seq_len)], dim=0)
+                    batch_size = hidden_states.shape[0]
+                    split_sent = [',', '?', '--', ';', '!', '\"', ' ,', ' ?', ' --', ' ;', ' !', ' \"']
+                    split_sent_tokens = self.tokenizer.batch_encode_plus(split_sent, return_tensors='pt')['input_ids'][:,1].tolist()
+
+                    h=[]
+                    for i in range(batch_size):
+                        for j in range(seq_len[i]+1):
+                            if batch[0][i][j] in split_sent_tokens or j == seq_len[i]:
+                                h.append(hidden_states[i,j,:].unsqueeze(0))
+                            
+                    # hidden_states=(bz, seq_len, d_model) -> (bz', d_model) 选出每个sequence包含在split_sent中的token's hidden state（包含",","--"作为加速手段）
+                    hidden_states = torch.concat(h, dim=0)
                     
+                num_trained_tokens += hidden_states.view(-1, hidden_states.shape[-1]).shape[0]
                 x, _, _ = pre_process(hidden_states)
                 _, x_hat = self.model(x)
                 loss = Normalized_MSE_loss(x, x_hat)
@@ -451,6 +464,7 @@ class Trainer:
             wandb.finish()
         unit_norm_decoder(self.model)
         torch.save(self.model.state_dict(), os.path.join(self.cfg.output_path, f'{self.title}.pt'))
+        print(f"trained on {num_trained_tokens/1_000}K tokens")
         return curr_loss
 
 
@@ -553,8 +567,8 @@ class Applier:
     @torch.no_grad()
     def get_context(
         self, 
-        threshold: float = 10.0, 
-        max_length: int = 64, 
+        threshold: float = 3.0, 
+        max_length: int = 96, 
         max_per_token: int = 2, 
         lines: int = 4,  
         output_path=None
@@ -640,19 +654,182 @@ class Applier:
             batch_size, seq_len, _ = latents.shape
             positions = (latents > threshold)
 
+            position_ids = torch.arange(self.cfg.max_length, dtype=torch.long)
+            position_ids = position_ids * batch[1]
+            seq_len = torch.max(position_ids, dim=1).values
+
             for i in range(batch_size):
                 tokens = self.tokenizer.convert_ids_to_tokens(input_ids[i])
                 latent_indices = torch.nonzero(positions[i], as_tuple=False)
 
                 for activation in latent_indices:
                     seq_pos, latent_dim = activation.tolist()
+                    if seq_pos==0 or seq_pos>seq_len[i]:
+                        continue
                     activation_value = latents[i, seq_pos, latent_dim].item()
-                    process_and_store_context(latent_dim, seq_pos, activation_value, tokens)
+                    process_and_store_context(latent_dim, seq_pos, activation_value, tokens, seq_len[i])
 
         filtered_latent_context = {}
         for latent_dim, token_dict in latent_context_map.items():
             # # Skip latent token categories exceeding 32
-            if len(token_dict) > 32:
+            if len(token_dict) > 100:
+                continue    
+            total_contexts = sum(len(contexts) for contexts in token_dict.values())
+            if total_contexts > lines:
+                sorted_token_dict = {}
+                for t_class, heap in token_dict.items():
+                    contexts_list = list(heap)
+                    contexts_list.sort(key=lambda x: x[0], reverse=True)
+                    sorted_token_dict[t_class] = [
+                        {'context': ctx, 'activation': act} for act, ctx in contexts_list
+                    ]
+                filtered_latent_context[latent_dim] = dict(sorted(sorted_token_dict.items()))
+
+        total_latents = len(filtered_latent_context)
+        sorted_latent_context = dict(sorted(filtered_latent_context.items()))
+
+        output_data = {
+            'total_latents': total_latents,
+            'threshold': threshold,
+            'max_length': max_length,
+            'max_per_token': max_per_token,
+            'lines': lines,
+            'latent_context_map': sorted_latent_context,
+        }
+        save_json(output_data, output_path)
+        return total_latents, output_path
+
+
+
+
+class SequenceApplier:
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.device = torch.device(cfg.device)
+        self.model = TopkSAE(cfg.hidden_size, cfg.latent_size, cfg.k)
+        self.model.load_state_dict(torch.load(cfg.SAE_path, weights_only=True, map_location=self.device))
+        self.model.to(self.device)
+        self.model.eval()
+        
+    def validate_triples(self, triple_list: List[tuple[int, float, int]], name: str) -> None:
+        if triple_list is not None:
+            for i, (a, b, c) in enumerate(triple_list):
+                if not (0 <= a < self.cfg.latent_size):
+                    raise ValueError(f'Element {a} in {name} at index {i} is out of latent size range [0, {self.cfg.latent_size}).')
+                if b <= 0:
+                    raise ValueError(f'Value {b} in {name} at index {i} is not bigger than zero')
+                if c not in [0, 1]:
+                    raise ValueError(f'Mode {c} in {name} at index {i} must be 0 or 1.')
+                
+    @torch.no_grad()
+    def get_context(
+        self, 
+        threshold: float = 3.0, 
+        max_length: int = 96, 
+        max_per_token: int = 2, 
+        lines: int = 4,  
+        output_path=None
+    ):
+    # get_context 需要修改，仅针对特定的latents进行context提取。
+        if output_path is None:
+            output_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}.json'
+
+        sentence_enders = {'.', '!', '?', '<|end_of_text|>', '"'}
+        half_length = max_length // 2
+
+        latent_context_map = defaultdict(lambda: defaultdict(list))
+
+        def find_sentence_bounds(seq_pos: int, tokens: List[str]):
+            start_pos = seq_pos
+            while start_pos > 0 and tokens[start_pos - 1] not in sentence_enders:
+                start_pos -= 1
+            end_pos = seq_pos
+            while end_pos < len(tokens) - 1 and tokens[end_pos] not in sentence_enders:
+                end_pos += 1
+            if end_pos < len(tokens):
+                end_pos += 1  
+            return start_pos, end_pos
+
+        def process_and_store_context(
+            latent_dim: int, seq_pos: int, activation_value: float, tokens: List[str]
+        ):
+            start_pos, end_pos = find_sentence_bounds(seq_pos, tokens)
+            sentence_tokens = tokens[start_pos:end_pos]
+            sentence_length = len(sentence_tokens)
+
+            if sentence_length > max_length:
+                activated_token_idx = seq_pos - start_pos
+                left_context_start = max(0, activated_token_idx - half_length)
+                right_context_end = min(sentence_length, activated_token_idx + half_length + 1)
+                context_tokens = sentence_tokens[left_context_start:right_context_end]
+                activated_token_idx -= left_context_start
+            else:
+                context_tokens = sentence_tokens
+                activated_token_idx = seq_pos - start_pos
+
+            if not (0 <= activated_token_idx < len(context_tokens)):
+                return
+
+            context_tokens = context_tokens.copy()
+            raw_token = context_tokens[activated_token_idx]
+            context_tokens[activated_token_idx] = f'<ACTIVATED>{raw_token}</ACTIVATED>'
+
+            while context_tokens and context_tokens[0] in ['<|end_of_text|>', ' ', '']:
+                context_tokens.pop(0)
+                activated_token_idx -= 1
+            while context_tokens and context_tokens[-1] in ['<|end_of_text|>', ' ', '']:
+                context_tokens.pop()
+
+            if not context_tokens or not (0 <= activated_token_idx < len(context_tokens)):
+                return
+
+            context_text = self.tokenizer.convert_tokens_to_string(context_tokens).strip().strip('"')
+            if not context_text:
+                return
+
+            activated_token_str = context_tokens[activated_token_idx]
+            if activated_token_str.startswith('<ACTIVATED>') and activated_token_str.endswith('</ACTIVATED>'):
+                raw_token = activated_token_str[len('<ACTIVATED>'):-len('</ACTIVATED>')].strip()
+            else:
+                raw_token = activated_token_str.strip()
+
+            token_class = raw_token.lower()
+
+            heap = latent_context_map[latent_dim][token_class]
+            heapq.heappush(heap, (activation_value, context_text))
+            if len(heap) > max_per_token:
+                heapq.heappop(heap)
+
+        self.tokenizer, self.language_model = get_language_model(self.cfg, self.cfg.model_path, self.device)
+        self.dataloader = create_dataloader(self.cfg.dataset_name, self.cfg.data_path, self.tokenizer, self.cfg.batch_size, self.cfg.max_length)
+        
+        for batch_idx, batch in tqdm(enumerate(self.dataloader), total=len(self.dataloader), desc="SAE applying"):
+            input_ids, _, _, hidden_states = get_outputs(self.cfg, batch, self.language_model, self.device)
+            x, _, _ = pre_process(hidden_states)
+
+            latents, _ = self.model(x)
+            batch_size, seq_len, _ = latents.shape
+            positions = (latents > threshold)
+
+            position_ids = torch.arange(self.cfg.max_length, dtype=torch.long)
+            position_ids = position_ids * batch[1]
+            seq_len = torch.max(position_ids, dim=1).values
+
+            for i in range(batch_size):
+                tokens = self.tokenizer.convert_ids_to_tokens(input_ids[i])
+                latent_indices = torch.nonzero(positions[i], as_tuple=False)
+
+                for activation in latent_indices:
+                    seq_pos, latent_dim = activation.tolist()
+                    if seq_pos==0 or seq_pos>seq_len[i]:
+                        continue
+                    activation_value = latents[i, seq_pos, latent_dim].item()
+                    process_and_store_context(latent_dim, seq_pos, activation_value, tokens, seq_len[i])
+
+        filtered_latent_context = {}
+        for latent_dim, token_dict in latent_context_map.items():
+            # # Skip latent token categories exceeding 32
+            if len(token_dict) > 100:
                 continue    
             total_contexts = sum(len(contexts) for contexts in token_dict.values())
             if total_contexts > lines:
@@ -907,14 +1084,14 @@ class SAE_pipeline:
         self.cfg.data_path = self.cfg.pipe_data_path[2]
         applier = Applier(self.cfg)
         self.result_dict[f'Features'], self.context_path = applier.get_context(
-            threshold=15, max_length=64, max_per_token=2, lines=4
+            threshold=self.cfg.apply_threshold, max_length=96, max_per_token=2, lines=4
         )
         del applier
         torch.cuda.empty_cache
 
     def interpret(self):
         if self.cfg.pipe_run[2]=='0':
-            self.context_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_15.json'
+            self.context_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{self.cfg.apply_threshold}.json'
         self.cfg.data_path = self.context_path
         interpreter = Interpreter(self.cfg)
         score = interpreter.run(sample_latents=500)
