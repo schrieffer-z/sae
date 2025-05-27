@@ -14,16 +14,16 @@ export WANDB_API_KEY='ac8217b0848b0b74ed1f9abd8bee6b09afcc7b5c'
 
 # Dataset 
 dataset_name=OpenWebText
-train_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/50M
-eval_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/testdata
-apply_data_path=/mnt/finder/lisihang/xAI-RLHF/Shuyi/sae/data/testdata
+train_data_path=/NAS/zhangsy/datasets/OpenWebText/100M
+eval_data_path=/NAS/zhangsy/datasets/OpenWebText/testdata
+apply_data_path=/NAS/zhangsy/datasets/OpenWebText/testdata
 
 # SAE and LM Backbone Model Setting
 k=...
 layer=...
 hidden_size=...
 latent_size=...
-model_path=/mnt/finder/lisihang/models/google/gemma-2-2b-it/
+model_path=/NAS/zhangsy/models/meta/Llama-3.1-8B-Instruct/
 
 # Training Setting
 sequence_or_token=token

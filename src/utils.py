@@ -1082,7 +1082,13 @@ class SAE_pipeline:
 
     def apply(self):
         self.cfg.data_path = self.cfg.pipe_data_path[2]
-        applier = Applier(self.cfg)
+        if self.cfg.sequence_or_token == 'token':
+            applier = Applier(self.cfg)
+        elif self.cfg.sequence_or_token == 'sequence':
+            applier = SequenceApplier(self.cfg)
+        else:
+            raise ValueError(f'Unsupport train level--{self.cfg.sequence_or_token}')
+
         self.result_dict[f'Features'], self.context_path = applier.get_context(
             threshold=self.cfg.apply_threshold, max_length=96, max_per_token=2, lines=4
         )
