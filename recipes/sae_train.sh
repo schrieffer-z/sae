@@ -13,7 +13,7 @@ pipe_project=SAE4RM-pipe-SAE
 export WANDB_API_KEY='ac8217b0848b0b74ed1f9abd8bee6b09afcc7b5c'
 
 # Dataset 
-dataset_name=OpenWebText
+dataset_name=corpus
 train_data_path=/NAS/zhangsy/datasets/OpenWebText/100M
 eval_data_path=/NAS/zhangsy/datasets/OpenWebText/testdata
 apply_data_path=/NAS/zhangsy/datasets/OpenWebText/testdata
