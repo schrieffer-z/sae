@@ -29,6 +29,30 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 # local
 from model import *
 
+LLAMA31TEMPLATE = (
+    "{{- bos_token }}"
+    "{%- if not date_string is defined %}"
+        "{%- set date_string = \"26 Jul 2024\" %}"
+    "{%- endif %}"
+
+    "{{- '<|start_header_id|>system<|end_header_id|>\n\n' }}"
+    "{{- 'Cutting Knowledge Date: December 2023\n' }}"
+    "{{- 'Today Date: ' + date_string + '\n\n' }}"
+    "{{- system_message }}"
+    "{{- '<|eot_id|>' }}"
+
+    "{% for message in messages %}"
+        "{% if (message['role'] != 'assistant') %}"
+            "{{ '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n' + message['content'] | trim + '<|eot_id|>' }}"
+        "{% elif (message['role'] == 'assistant')%}"
+            "{% generation %}"
+            "{{ '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n' }}"
+            "{{ message['content'] | trim + '<|eot_id|>'}}"
+            "{% endgeneration %}"
+        "{% endif %}"
+    "{% endfor %}"
+)
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Configuration on sparse autoencoders pipeline')
 
@@ -102,7 +126,7 @@ def validate_english_text(text: str, allow_extended_ascii=False) -> bool:
 
 
 
-class OpenWebTextDataset(Dataset):
+class OpenWebText(Dataset):
     def __init__(self, 
                  folder_path: str, 
                  tokenizer: AutoTokenizer, 
@@ -166,7 +190,7 @@ class OpenWebTextDataset(Dataset):
         return self.data[idx]
 
 
-class SkyworkPreferenceDataset(Dataset):
+class SkyWorkPreference(Dataset):
     def __init__(self, 
                  pref_data_path : str,
                  tokenizer: AutoTokenizer, 
@@ -181,17 +205,18 @@ class SkyworkPreferenceDataset(Dataset):
         ds = datasets.load_dataset('parquet', data_dir=self.pref_data_path)['train'].shuffle(seed=42)
         tokenizer = self.tokenizer
         def tokenize(sample):
-            prompt = tokenizer.apply_chat_template(
-                sample['text'], tokenize=False, add_generation_prompt=False).replace(tokenizer.bos_token, "")
-
-            tokenized_pos = tokenizer(
-                prompt,
+            tokenized = tokenizer.apply_chat_template(
+                sample['text'],
+                chat_template=LLAMA31TEMPLATE, 
+                add_generation_prompt=False,
                 return_tensors='pt',
                 max_length=self.max_length,
                 padding='max_length',
-                truncation=True
+                truncation=True,
+                return_dict=True,
+                return_assistant_tokens_mask=True
             )
-            return tokenized_pos
+            return tokenized
         return datasets.Dataset.from_dict({'text':ds['chosen']+ds['rejected']}).map(tokenize, num_proc=8)
 
     def __len__(self):
@@ -209,28 +234,37 @@ def create_dataloader(
     max_length: int,
     keyword: str = 'text'
 ) -> DataLoader:
-    if dataset_name=='OpenWebText':
-        dataset = OpenWebTextDataset(folder_path, tokenizer, max_length, keyword)
-    elif dataset_name=='Skywork-Reward-Preference-80K':
-        dataset = SkyworkPreferenceDataset(folder_path, tokenizer, max_length)
+    if dataset_name=='corpus':
+        dataset = OpenWebText(folder_path, tokenizer, max_length, keyword)
+    elif 'preference' in dataset_name.lower():
+        if 'skywork' in dataset_name.lower():
+            dataset = SkyWorkPreference(folder_path, tokenizer, max_length)
+        else:
+            raise ValueError(f"Unsupported dataset: {dataset_name}")
     else:
         raise ValueError(f"Unsupported dataset: {dataset_name}")
 
 
     def collate_fn(batch):
         input_ids = torch.stack([
-                item[0] if dataset_name=='OpenWebText'  else 
-                torch.tensor(item['input_ids']).squeeze()
+                item[0] if dataset_name=='corpus'  
+                else torch.tensor(item['input_ids']).squeeze()
                 for item in batch
             ]
         )
         attention_mask = torch.stack([
-                item[1] if dataset_name=='OpenWebText'  else 
-                torch.tensor(item['attention_mask']).squeeze()
+                item[1] if dataset_name=='corpus'  
+                else torch.tensor(item['attention_mask']).squeeze()
                 for item in batch
             ]
         )
-        return input_ids, attention_mask
+        assistant_mask = torch.stack([
+                torch.zeros_like(torch.tensor(item[1])) if dataset_name=='corpus'  
+                else torch.tensor(item['attention_mask']).squeeze()
+                for item in batch
+            ]
+        )
+        return input_ids, attention_mask, assistant_mask
 
 
     dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=0, collate_fn=collate_fn)
@@ -273,7 +307,7 @@ def get_outputs(
     '''
     Extracts model outputs and hidden states from a given batch and language model.
     '''
-    input_ids, attention_mask = batch
+    input_ids, attention_mask = batch[0], batch[1]
     input_ids = input_ids.to(device)
     attention_mask = attention_mask.to(device)
     with torch.no_grad():
@@ -293,9 +327,15 @@ def pre_process(hidden_stats: torch.Tensor, eps: float = 1e-6) -> tuple:
     x = (hidden_stats - mean) / (std + eps)
     return x, mean, std
 
-
 def Normalized_MSE_loss(x: torch.Tensor, x_hat: torch.Tensor) -> torch.Tensor:
     return (((x_hat - x) ** 2).mean(dim=-1) / (x**2).mean(dim=-1)).mean()
+    
+def Masked_Normalized_MSE_loss(x: torch.Tensor, x_hat: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    mask = mask.to(x.device, x.dtype)
+    loss = ((x_hat - x) ** 2).mean(dim=-1) / (x**2).mean(dim=-1)
+    assert loss.shape==mask.shape
+    seq_loss = (mask * loss).sum(-1) / (mask.sum(-1))
+    return seq_loss.mean()
 
 
 @torch.no_grad()
@@ -432,7 +472,12 @@ class Trainer:
                 num_trained_tokens += hidden_states.view(-1, hidden_states.shape[-1]).shape[0]
                 x, _, _ = pre_process(hidden_states)
                 _, x_hat = self.model(x)
-                loss = Normalized_MSE_loss(x, x_hat)
+                if self.cfg.sequence_or_token=='sequence':
+                    loss = Normalized_MSE_loss(x, x_hat)
+                elif self.cfg.sequence_or_token=='token':
+                    loss = Masked_Normalized_MSE_loss(x, x_hat, batch[1])
+                else:
+                    raise ValueError(f'unsupported train level {self.cfg.sequence_or_token}')
                 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -821,7 +866,7 @@ class SequenceApplier:
 
                 for activation in latent_indices:
                     seq_pos, latent_dim = activation.tolist()
-                    if seq_pos==0 or seq_pos>seq_len[i]:
+                    if seq_pos!=seq_len[i]:
                         continue
                     activation_value = latents[i, seq_pos, latent_dim].item()
                     process_and_store_context(latent_dim, seq_pos, activation_value, tokens, seq_len[i])
