@@ -620,7 +620,7 @@ class Applier:
     ):
     # get_context 需要修改，仅针对特定的latents进行context提取。
         if output_path is None:
-            output_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}.json'
+            output_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}-1.json'
 
         sentence_enders = {'.', '!', '?', '<|end_of_text|>', '"'}
         half_length = max_length // 2
@@ -690,6 +690,8 @@ class Applier:
 
         self.tokenizer, self.language_model = get_language_model(self.cfg, self.cfg.model_path, self.device)
         self.dataloader = create_dataloader(self.cfg.dataset_name, self.cfg.data_path, self.tokenizer, self.cfg.batch_size, self.cfg.max_length)
+        self.pos_latents = torch.load('../pos1.pt', weights_only=True).tolist()
+        self.neg_latents = torch.load('../neg1.pt', weights_only=True).tolist()
         
         for batch_idx, batch in tqdm(enumerate(self.dataloader), total=len(self.dataloader), desc="SAE applying"):
             input_ids, _, _, hidden_states = get_outputs(self.cfg, batch, self.language_model, self.device)
@@ -711,8 +713,10 @@ class Applier:
                     seq_pos, latent_dim = activation.tolist()
                     if seq_pos==0 or seq_pos>seq_len[i]:
                         continue
+                    if (latent_dim not in self.pos_latents) and (latent_dim not in self.neg_latents):
+                        continue
                     activation_value = latents[i, seq_pos, latent_dim].item()
-                    process_and_store_context(latent_dim, seq_pos, activation_value, tokens, seq_len[i])
+                    process_and_store_context(latent_dim, seq_pos, activation_value, tokens)
 
         filtered_latent_context = {}
         for latent_dim, token_dict in latent_context_map.items():
@@ -1102,7 +1106,11 @@ class SAE_pipeline:
             self.title = mp[mp.find('gemma'):]+'_'+self.title
         else:
             raise ValueError(f'Unsupport base model type from path {self.cfg.model_path}')
-        self.cfg.SAE_path = f'../SAE_models/{self.title}.pt'
+        if os.path.exists(f'../SAE_models/{self.title}.pt'):
+            self.cfg.SAE_path = f'../SAE_models/{self.title}.pt'
+        else:
+            self.cfg.SAE_path = f'/NAS/zhangsy/SAE_models/{self.title}.pt'
+
         self.result_dict = {}
     
     def train(self):
