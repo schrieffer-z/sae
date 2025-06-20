@@ -492,7 +492,7 @@ class Trainer:
                     wandb.log({'Normalized_MSE': curr_loss})
                 
                 save_ats = np.round(len(self.dataloader)*np.linspace(0,1,5))[1:-1].astype(np.int64)
-                if self.cfg.pipe_data_path[0].split('/')[-1]=='1B' and (global_step_idx in save_ats):
+                if (global_step_idx in save_ats):
                     title = f'{self.cfg.sequence_or_token}_Latent{self.cfg.latent_size}_Layer{self.cfg.layer}_K{self.cfg.k}_@step{global_step_idx}'
                     mp=self.cfg.model_path
                     if 'Llama' in self.cfg.model_path:
@@ -501,7 +501,7 @@ class Trainer:
                         title = mp[mp.find('Qwen2.5'):]+'_'+title
                     elif 'gemma' in self.cfg.model_path:
                         title = mp[mp.find('gemma'):]+'_'+title
-                    torch.save(self.model.state_dict(), os.path.join(self.cfg.output_path, f'{title}.pt'))
+                    torch.save(self.model.state_dict(), os.path.join(self.cfg.output_path, 'tmp', f'{title}.pt'))
         
         if self.cfg.use_wandb:
             wandb.finish()
