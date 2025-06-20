@@ -19,7 +19,7 @@ import torch.nn.functional as F
 from typing import List, Union
 from tqdm import tqdm
 from torch.optim import Adam
-from openai import AzureOpenAI
+from openai import AzureOpenAI, OpenAI
 from collections import defaultdict
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.hooks import RemovableHandle
@@ -1005,17 +1005,22 @@ class Interpreter:
         sampled_latents = [all_latents[i] for i in sorted(sampled_indices)]
 
         sampled_latents=[]
-        latents = torch.load('../latents.pt')
-        latents_of_rm = [str(i.item()) for i in latents]
+        pos_latents = torch.load('../pos1.pt', weights_only=True).tolist()
+        neg_latents = torch.load('../neg1.pt', weights_only=True).tolist()
+        latents = pos_latents + neg_latents
+        latents_of_rm = [str(i) for i in latents]
+
         for f in latents_of_rm:
             if f in all_latents:
                 sampled_latents.append(f)
                 
 
-        client = AzureOpenAI(
-            azure_endpoint=self.cfg.api_base,
-            api_version=self.cfg.api_version,
-            api_key=self.cfg.api_key,
+
+        client = OpenAI(
+            api_key=self.cfg.api_key,  
+            base_url=self.cfg.api_base,
+            timeout=60,
+            max_retries=2
         )
 
         cost = 0.0
@@ -1150,7 +1155,7 @@ class SAE_pipeline:
 
     def interpret(self):
         if self.cfg.pipe_run[2]=='0':
-            self.context_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{self.cfg.apply_threshold}.json'
+            self.context_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{self.cfg.apply_threshold}-1.json'
         self.cfg.data_path = self.context_path
         interpreter = Interpreter(self.cfg)
         score = interpreter.run(sample_latents=500)
