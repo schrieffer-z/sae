@@ -491,11 +491,9 @@ class Trainer:
                 if self.cfg.use_wandb:
                     wandb.log({'Normalized_MSE': curr_loss})
                 
-                save_ats = np.round(len(self.dataloader)*np.linspace(0,1,11))[1:-1].astype(np.int64)
-                if self.cfg.pipe_data_path[0].split('/')[-1]=='100M' and (global_step_idx in save_ats):
-                    idx = np.arange(1,10)[save_ats==global_step_idx].item()
-                    
-                    title = f'{self.cfg.sequence_or_token}_Latent{self.cfg.latent_size}_Layer{self.cfg.layer}_K{self.cfg.k}_{idx*10}M'
+                save_ats = np.round(len(self.dataloader)*np.linspace(0,1,5))[1:-1].astype(np.int64)
+                if self.cfg.pipe_data_path[0].split('/')[-1]=='1B' and (global_step_idx in save_ats):
+                    title = f'{self.cfg.sequence_or_token}_Latent{self.cfg.latent_size}_Layer{self.cfg.layer}_K{self.cfg.k}_@step{global_step_idx}'
                     mp=self.cfg.model_path
                     if 'Llama' in self.cfg.model_path:
                         title = mp[mp.find('Llama'):]+'_'+title
