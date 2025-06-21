@@ -29,29 +29,6 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 # local
 from model import *
 
-LLAMA31TEMPLATE = (
-    "{{- bos_token }}"
-    "{%- if not date_string is defined %}"
-        "{%- set date_string = \"26 Jul 2024\" %}"
-    "{%- endif %}"
-
-    "{{- '<|start_header_id|>system<|end_header_id|>\n\n' }}"
-    "{{- 'Cutting Knowledge Date: December 2023\n' }}"
-    "{{- 'Today Date: ' + date_string + '\n\n' }}"
-    "{{- system_message }}"
-    "{{- '<|eot_id|>' }}"
-
-    "{% for message in messages %}"
-        "{% if (message['role'] != 'assistant') %}"
-            "{{ '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n' + message['content'] | trim + '<|eot_id|>' }}"
-        "{% elif (message['role'] == 'assistant')%}"
-            "{% generation %}"
-            "{{ '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n' }}"
-            "{{ message['content'] | trim + '<|eot_id|>'}}"
-            "{% endgeneration %}"
-        "{% endif %}"
-    "{% endfor %}"
-)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Configuration on sparse autoencoders pipeline')
@@ -190,7 +167,7 @@ class OpenWebText(Dataset):
         return self.data[idx]
 
 
-class SkyWorkPreference(Dataset):
+class Preference(Dataset):
     def __init__(self, 
                  pref_data_path : str,
                  tokenizer: AutoTokenizer, 
@@ -205,18 +182,16 @@ class SkyWorkPreference(Dataset):
         ds = datasets.load_dataset('parquet', data_dir=self.pref_data_path)['train'].shuffle(seed=42)
         tokenizer = self.tokenizer
         def tokenize(sample):
-            tokenized = tokenizer.apply_chat_template(
-                sample['text'],
-                chat_template=LLAMA31TEMPLATE, 
-                add_generation_prompt=False,
+            formated_text = tokenizer.apply_chat_template(sample['text'], tokenize=False, add_generation_prompt=False)
+            if tokenizer.bos_token!=None:
+                formated_text=formated_text.replace(tokenizer.bos_token, "")
+            return tokenizer(
+                formated_text, 
+                truncation=True,
                 return_tensors='pt',
                 max_length=self.max_length,
-                padding='max_length',
-                truncation=True,
-                return_dict=True,
-                return_assistant_tokens_mask=True
+                padding='max_length'
             )
-            return tokenized
         return datasets.Dataset.from_dict({'text':ds['chosen']+ds['rejected']}).map(tokenize, num_proc=8)
 
     def __len__(self):
@@ -237,10 +212,7 @@ def create_dataloader(
     if dataset_name=='corpus':
         dataset = OpenWebText(folder_path, tokenizer, max_length, keyword)
     elif 'preference' in dataset_name.lower():
-        if 'skywork' in dataset_name.lower():
-            dataset = SkyWorkPreference(folder_path, tokenizer, max_length)
-        else:
-            raise ValueError(f"Unsupported dataset: {dataset_name}")
+        dataset = Preference(folder_path, tokenizer, max_length)
     else:
         raise ValueError(f"Unsupported dataset: {dataset_name}")
 
@@ -258,13 +230,7 @@ def create_dataloader(
                 for item in batch
             ]
         )
-        assistant_mask = torch.stack([
-                torch.zeros_like(torch.tensor(item[1])) if dataset_name=='corpus'  
-                else torch.tensor(item['attention_mask']).squeeze()
-                for item in batch
-            ]
-        )
-        return input_ids, attention_mask, assistant_mask
+        return input_ids, attention_mask
 
 
     dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=0, collate_fn=collate_fn)
@@ -781,75 +747,18 @@ class SequenceApplier:
         if output_path is None:
             output_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}.json'
 
-        sentence_enders = {'.', '!', '?', '<|end_of_text|>', '"'}
-        half_length = max_length // 2
-
-        latent_context_map = defaultdict(lambda: defaultdict(list))
-
-        def find_sentence_bounds(seq_pos: int, tokens: List[str]):
-            start_pos = seq_pos
-            while start_pos > 0 and tokens[start_pos - 1] not in sentence_enders:
-                start_pos -= 1
-            end_pos = seq_pos
-            while end_pos < len(tokens) - 1 and tokens[end_pos] not in sentence_enders:
-                end_pos += 1
-            if end_pos < len(tokens):
-                end_pos += 1  
-            return start_pos, end_pos
-
-        def process_and_store_context(
-            latent_dim: int, seq_pos: int, activation_value: float, tokens: List[str]
-        ):
-            start_pos, end_pos = find_sentence_bounds(seq_pos, tokens)
-            sentence_tokens = tokens[start_pos:end_pos]
-            sentence_length = len(sentence_tokens)
-
-            if sentence_length > max_length:
-                activated_token_idx = seq_pos - start_pos
-                left_context_start = max(0, activated_token_idx - half_length)
-                right_context_end = min(sentence_length, activated_token_idx + half_length + 1)
-                context_tokens = sentence_tokens[left_context_start:right_context_end]
-                activated_token_idx -= left_context_start
-            else:
-                context_tokens = sentence_tokens
-                activated_token_idx = seq_pos - start_pos
-
-            if not (0 <= activated_token_idx < len(context_tokens)):
-                return
-
-            context_tokens = context_tokens.copy()
-            raw_token = context_tokens[activated_token_idx]
-            context_tokens[activated_token_idx] = f'<ACTIVATED>{raw_token}</ACTIVATED>'
-
-            while context_tokens and context_tokens[0] in ['<|end_of_text|>', ' ', '']:
-                context_tokens.pop(0)
-                activated_token_idx -= 1
-            while context_tokens and context_tokens[-1] in ['<|end_of_text|>', ' ', '']:
-                context_tokens.pop()
-
-            if not context_tokens or not (0 <= activated_token_idx < len(context_tokens)):
-                return
-
-            context_text = self.tokenizer.convert_tokens_to_string(context_tokens).strip().strip('"')
-            if not context_text:
-                return
-
-            activated_token_str = context_tokens[activated_token_idx]
-            if activated_token_str.startswith('<ACTIVATED>') and activated_token_str.endswith('</ACTIVATED>'):
-                raw_token = activated_token_str[len('<ACTIVATED>'):-len('</ACTIVATED>')].strip()
-            else:
-                raw_token = activated_token_str.strip()
-
-            token_class = raw_token.lower()
-
-            heap = latent_context_map[latent_dim][token_class]
-            heapq.heappush(heap, (activation_value, context_text))
-            if len(heap) > max_per_token:
-                heapq.heappop(heap)
-
         self.tokenizer, self.language_model = get_language_model(self.cfg, self.cfg.model_path, self.device)
         self.dataloader = create_dataloader(self.cfg.dataset_name, self.cfg.data_path, self.tokenizer, self.cfg.batch_size, self.cfg.max_length)
         
+        sentence_enders = [
+            '?',    '.',   ';',    '!',     '"',
+            ' ?',   ' .',  ' ;',   ' !',    ' "',
+            '<|end_of_text|>',
+            '<|eot_id|>' 
+        ]
+        sentence_enders_tokens = self.tokenizer.batch_encode_plus(sentence_enders, return_tensors='pt')['input_ids'][:,1].tolist()
+
+        latent_context_map = defaultdict(lambda: defaultdict(list))
         for batch_idx, batch in tqdm(enumerate(self.dataloader), total=len(self.dataloader), desc="SAE applying"):
             input_ids, _, _, hidden_states = get_outputs(self.cfg, batch, self.language_model, self.device)
             x, _, _ = pre_process(hidden_states)
@@ -864,14 +773,28 @@ class SequenceApplier:
 
             for i in range(batch_size):
                 tokens = self.tokenizer.convert_ids_to_tokens(input_ids[i])
-                latent_indices = torch.nonzero(positions[i], as_tuple=False)
+                assert tokens[25] == '<|eot_id|>' # system message长度是固定值
 
+                prev_pos = 26
+                latent_indices = torch.nonzero(positions[i], as_tuple=False)
                 for activation in latent_indices:
                     seq_pos, latent_dim = activation.tolist()
-                    if seq_pos!=seq_len[i]:
+                    if seq_pos <= 25 or seq_pos > seq_len[i]:
                         continue
+                    if input_ids[seq_pos] not in sentence_enders_tokens:
+                        continue
+                    
                     activation_value = latents[i, seq_pos, latent_dim].item()
-                    process_and_store_context(latent_dim, seq_pos, activation_value, tokens, seq_len[i])
+                    
+                    raw = self.tokenizer.convert_tokens_to_ids(tokens[prev_pos:seq_pos])
+                    context_text = self.tokenizer.decode(raw)
+                    
+                    heap = latent_context_map[latent_dim][tokens[seq_pos]]
+                    heapq.heappush(heap, (activation_value, context_text))
+                    if len(heap) > max_per_token:
+                        heapq.heappop(heap)
+                    
+                    prev_pos = seq_pos
 
         filtered_latent_context = {}
         for latent_dim, token_dict in latent_context_map.items():
