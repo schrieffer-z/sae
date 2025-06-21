@@ -457,7 +457,7 @@ class Trainer:
                 if self.cfg.use_wandb:
                     wandb.log({'Normalized_MSE': curr_loss})
                 
-                save_ats = np.round(len(self.dataloader)*np.linspace(0,1,5))[1:-1].astype(np.int64)
+                save_ats = np.round(len(self.dataloader)*np.linspace(0,1,10))[1:-1].astype(np.int64)
                 if (global_step_idx in save_ats):
                     title = self.title + f'@step{global_step_idx}'
                     mp=self.cfg.model_path
@@ -467,6 +467,8 @@ class Trainer:
                         title = mp[mp.find('Qwen2.5'):]+'_'+title
                     elif 'gemma' in self.cfg.model_path:
                         title = mp[mp.find('gemma'):]+'_'+title
+                    
+                    os.makedirs(os.path.join(self.cfg.output_path, 'tmp'), exist_ok=True)
                     torch.save(self.model.state_dict(), os.path.join(self.cfg.output_path, 'tmp', f'{title}.pt'))
         
         if self.cfg.use_wandb:
