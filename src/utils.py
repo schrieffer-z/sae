@@ -586,7 +586,7 @@ class Applier:
     ):
     # get_context 需要修改，仅针对特定的latents进行context提取。
         if output_path is None:
-            output_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}-1.json'
+            output_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}.json'
 
         sentence_enders = {'.', '!', '?', '<|end_of_text|>', '"'}
         half_length = max_length // 2
@@ -741,7 +741,7 @@ class SequenceApplier:
         self, 
         threshold: float = 3.0, 
         max_length: int = 96, 
-        max_per_token: int = 2, 
+        max_per_token: int = 64, 
         lines: int = 4,  
         output_path=None
     ):
@@ -779,24 +779,26 @@ class SequenceApplier:
 
                 prev_pos = 26
                 latent_indices = torch.nonzero(positions[i], as_tuple=False)
-                for activation in latent_indices:
-                    seq_pos, latent_dim = activation.tolist()
-                    if seq_pos <= 25 or seq_pos > seq_len[i]:
-                        continue
-                    if input_ids[seq_pos] not in sentence_enders_tokens:
+                for pos in range(26, seq_len[i]+1):
+                    if input_ids[i][pos] not in sentence_enders_tokens:
                         continue
                     
-                    activation_value = latents[i, seq_pos, latent_dim].item()
-                    
-                    raw = self.tokenizer.convert_tokens_to_ids(tokens[prev_pos:seq_pos])
-                    context_text = self.tokenizer.decode(raw)
-                    
-                    heap = latent_context_map[latent_dim][tokens[seq_pos]]
-                    heapq.heappush(heap, (activation_value, context_text))
-                    if len(heap) > max_per_token:
-                        heapq.heappop(heap)
-                    
-                    prev_pos = seq_pos
+                    mask = (latent_indices[:, 0] == pos)
+                    latents_at_pos = latent_indices[mask]
+                    for activation in latents_at_pos:
+                        _pos, latent_dim = activation.tolist()
+                        assert _pos==pos
+
+                        activation_value = latents[i, pos, latent_dim].item()
+                        raw = self.tokenizer.convert_tokens_to_ids(tokens[prev_pos:pos+1])
+                        context_text = self.tokenizer.decode(raw).strip()
+                        
+                        heap = latent_context_map[latent_dim][tokens[pos]]
+                        heapq.heappush(heap, (activation_value, context_text))
+                        if len(heap) > max_per_token:
+                            heapq.heappop(heap)
+                        
+                    prev_pos = pos + 1
 
         filtered_latent_context = {}
         for latent_dim, token_dict in latent_context_map.items():
