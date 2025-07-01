@@ -742,7 +742,7 @@ class SequenceApplier:
         threshold: float = 3.0, 
         max_length: int = 96, 
         max_per_token: int = 64, 
-        lines: int = 4,  
+        lines: int = 400,  
         output_path=None
     ):
     # get_context 需要修改，仅针对特定的latents进行context提取。
@@ -760,6 +760,7 @@ class SequenceApplier:
         ]
         sentence_enders_tokens = self.tokenizer.batch_encode_plus(sentence_enders, return_tensors='pt')['input_ids'][:,1].tolist()
 
+        ckmap = defaultdict(lambda: defaultdict(list))
         latent_context_map = defaultdict(lambda: defaultdict(list))
         for batch_idx, batch in tqdm(enumerate(self.dataloader), total=len(self.dataloader), desc="SAE applying"):
             input_ids, _, _, hidden_states = get_outputs(self.cfg, batch, self.language_model, self.device)
@@ -794,6 +795,10 @@ class SequenceApplier:
                         context_text = self.tokenizer.decode(raw).strip()
                         
                         heap = latent_context_map[latent_dim][tokens[pos]]
+                        cmap = ckmap[latent_dim][tokens[pos]]
+                        if context_text in ckmap:
+                            continue
+                        heapq.heappush(cmap, context_text)
                         heapq.heappush(heap, (activation_value, context_text))
                         if len(heap) > max_per_token:
                             heapq.heappop(heap)
@@ -1073,7 +1078,7 @@ class SAE_pipeline:
             raise ValueError(f'Unsupport train level--{self.cfg.sequence_or_token}')
 
         self.result_dict[f'Features'], self.context_path = applier.get_context(
-            threshold=self.cfg.apply_threshold, max_length=96, max_per_token=2, lines=4
+            threshold=self.cfg.apply_threshold, max_length=96
         )
         del applier
         torch.cuda.empty_cache
