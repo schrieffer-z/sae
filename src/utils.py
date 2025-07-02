@@ -741,8 +741,8 @@ class SequenceApplier:
         self, 
         threshold: float = 3.0, 
         max_length: int = 96, 
-        max_per_token: int = 64, 
-        lines: int = 400,  
+        max_per_token: int = 256, 
+        lines: int = 4,  
         output_path=None
     ):
     # get_context 需要修改，仅针对特定的latents进行context提取。
@@ -794,6 +794,7 @@ class SequenceApplier:
                         raw = self.tokenizer.convert_tokens_to_ids(tokens[prev_pos:pos+1])
                         context_text = self.tokenizer.decode(raw).strip()
                         
+                        assert len(ckmap)==len(latent_context_map)
                         heap = latent_context_map[latent_dim][tokens[pos]]
                         cmap = ckmap[latent_dim][tokens[pos]]
                         if context_text in ckmap:
