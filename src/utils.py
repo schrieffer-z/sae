@@ -715,6 +715,36 @@ class Applier:
         return total_latents, output_path
 
 
+def save_latent_dict(latent_context_map, output_path):
+    filtered_latent_context = {}
+    for latent_dim, token_dict in latent_context_map.items():
+        # # Skip latent token categories exceeding 32
+        if len(token_dict) > 100:
+            continue    
+        total_contexts = sum(len(contexts) for contexts in token_dict.values())
+        if total_contexts > 4:
+            sorted_token_dict = {}
+            for t_class, heap in token_dict.items():
+                contexts_list = list(heap)
+                contexts_list.sort(key=lambda x: x[0], reverse=True)
+                sorted_token_dict[t_class] = [
+                    {'context': ctx, 'activation': act} for act, ctx in contexts_list
+                ]
+            filtered_latent_context[latent_dim] = dict(sorted(sorted_token_dict.items()))
+
+    total_latents = len(filtered_latent_context)
+    sorted_latent_context = dict(sorted(filtered_latent_context.items()))
+
+    output_data = {
+        'total_latents': total_latents,
+        'threshold': threshold,
+        'max_length': max_length,
+        'max_per_token': max_per_token,
+        'lines': lines,
+        'latent_context_map': sorted_latent_context,
+    }
+    save_json(output_data, os.path.join(output_path))
+    return
 
 
 class SequenceApplier:
@@ -760,6 +790,7 @@ class SequenceApplier:
         ]
         sentence_enders_tokens = self.tokenizer.batch_encode_plus(sentence_enders, return_tensors='pt')['input_ids'][:,1].tolist()
 
+        global_step_idx=0
         ckmap = defaultdict(lambda: defaultdict(list))
         latent_context_map = defaultdict(lambda: defaultdict(list))
         for batch_idx, batch in tqdm(enumerate(self.dataloader), total=len(self.dataloader), desc="SAE applying"):
@@ -805,6 +836,13 @@ class SequenceApplier:
                             heapq.heappop(heap)
                         
                     prev_pos = pos + 1
+
+            save_ats = np.round(len(self.dataloader)*np.linspace(0,1,11))[1:-1].astype(np.int64)
+            if (global_step_idx in save_ats):
+                output_path_tmp = f'../contexts/tmp/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}@step{global_step_idx}.json'
+                save_latent_dict(latent_context_map, output_path_tmp)
+            global_step_idx += 1
+
 
         filtered_latent_context = {}
         for latent_dim, token_dict in latent_context_map.items():
