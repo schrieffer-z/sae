@@ -797,7 +797,7 @@ class SequenceApplier:
                         assert len(ckmap)==len(latent_context_map)
                         heap = latent_context_map[latent_dim][tokens[pos]]
                         cmap = ckmap[latent_dim][tokens[pos]]
-                        if context_text in ckmap:
+                        if context_text in cmap:
                             continue
                         heapq.heappush(cmap, context_text)
                         heapq.heappush(heap, (activation_value, context_text))
@@ -1042,10 +1042,8 @@ class SAE_pipeline:
             self.title = mp[mp.find('gemma'):]+'_'+self.title
         else:
             raise ValueError(f'Unsupport base model type from path {self.cfg.model_path}')
-        if os.path.exists(f'../SAE_models/{self.title}.pt'):
+        if self.cfg.SAE_path is None:
             self.cfg.SAE_path = f'../SAE_models/{self.title}.pt'
-        else:
-            self.cfg.SAE_path = f'/NAS/zhangsy/SAE_models/{self.title}.pt'
 
         self.result_dict = {}
     
