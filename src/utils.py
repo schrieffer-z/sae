@@ -753,7 +753,7 @@ class SequenceApplier:
         self.device = torch.device(cfg.device)
         self.model = TopkSAE(cfg.hidden_size, cfg.latent_size, cfg.k)
         self.model.load_state_dict(torch.load(cfg.SAE_path, weights_only=True, map_location=self.device))
-        self.model.to(self.device)
+        self.model.to(self.device).to(torch.bfloat16)
         self.model.eval()
         
     def validate_triples(self, triple_list: List[tuple[int, float, int]], name: str) -> None:
