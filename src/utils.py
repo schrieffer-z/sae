@@ -842,7 +842,11 @@ class SequenceApplier:
 
             save_ats = np.round(len(self.dataloader)*np.linspace(0,1,11))[1:-1].astype(np.int64)
             if (global_step_idx in save_ats):
-                output_path_tmp = f'../contexts/tmp/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}@step{global_step_idx}.json'
+                base_t = os.path.join(self.cfg.output_path if self.cfg.output_path is not None else '../contexts/', 'tmp')
+                title_t = f'{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}@step{global_step_idx}.json'
+                
+                os.makedirs(base_t, exist_ok=True)
+                output_path_tmp = os.path.join(base_t, title_t)
                 save_latent_dict(latent_context_map, output_path_tmp, threshold, max_length, max_per_token, lines)
             global_step_idx += 1
 
