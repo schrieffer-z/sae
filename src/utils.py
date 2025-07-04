@@ -715,7 +715,7 @@ class Applier:
         return total_latents, output_path
 
 
-def save_latent_dict(latent_context_map, output_path):
+def save_latent_dict(latent_context_map, output_path, threshold, max_length, max_per_token, lines):
     filtered_latent_context = {}
     for latent_dim, token_dict in latent_context_map.items():
         # # Skip latent token categories exceeding 32
@@ -840,7 +840,7 @@ class SequenceApplier:
             save_ats = np.round(len(self.dataloader)*np.linspace(0,1,11))[1:-1].astype(np.int64)
             if (global_step_idx in save_ats):
                 output_path_tmp = f'../contexts/tmp/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}@step{global_step_idx}.json'
-                save_latent_dict(latent_context_map, output_path_tmp)
+                save_latent_dict(latent_context_map, output_path_tmp, threshold, max_length, max_per_token)
             global_step_idx += 1
 
 
@@ -974,8 +974,8 @@ class Interpreter:
         sampled_latents = [all_latents[i] for i in sorted(sampled_indices)]
 
         sampled_latents=[]
-        pos_latents = torch.load('../pos1.pt', weights_only=True).tolist()
-        neg_latents = torch.load('../neg1.pt', weights_only=True).tolist()
+        pos_latents = torch.load('../pos_llama8b_sequence_Latent65536_Layer18_K192_1B.pt', weights_only=True).tolist()
+        neg_latents = torch.load('../neg_llama8b_sequence_Latent65536_Layer18_K192_1B.pt', weights_only=True).tolist()
         latents = pos_latents + neg_latents
         latents_of_rm = [str(i) for i in latents]
 
@@ -1122,7 +1122,7 @@ class SAE_pipeline:
 
     def interpret(self):
         if self.cfg.pipe_run[2]=='0':
-            self.context_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{self.cfg.apply_threshold}-1.json'
+            self.context_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{self.cfg.apply_threshold}.json'
         self.cfg.data_path = self.context_path
         interpreter = Interpreter(self.cfg)
         score = interpreter.run(sample_latents=500)
