@@ -743,7 +743,7 @@ def save_latent_dict(latent_context_map, output_path, threshold, max_length, max
         'lines': lines,
         'latent_context_map': sorted_latent_context,
     }
-    save_json(output_data, os.path.join(output_path))
+    save_json(output_data, output_path)
     return
 
 
@@ -776,8 +776,11 @@ class SequenceApplier:
         output_path=None
     ):
     # get_context 需要修改，仅针对特定的latents进行context提取。
-        if output_path is None:
-            output_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}.json'
+        title = f'{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}.json'
+        if self.cfg.output_path is None:
+            output_path = os.path.join("../contexts/", title)
+        else:
+            output_path = os.path.join(self.cfg.output_path, title)
 
         self.tokenizer, self.language_model = get_language_model(self.cfg, self.cfg.model_path, self.device)
         self.dataloader = create_dataloader(self.cfg.dataset_name, self.cfg.data_path, self.tokenizer, self.cfg.batch_size, self.cfg.max_length)
@@ -1118,7 +1121,7 @@ class SAE_pipeline:
             threshold=self.cfg.apply_threshold, max_length=96
         )
         del applier
-        torch.cuda.empty_cache
+        torch.cuda.empty_cache()
 
     def interpret(self):
         if self.cfg.pipe_run[2]=='0':
