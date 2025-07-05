@@ -192,7 +192,7 @@ class Preference(Dataset):
                 max_length=self.max_length,
                 padding='max_length'
             )
-        return datasets.Dataset.from_dict({'text':ds['chosen']+ds['rejected']}).map(tokenize, num_proc=8)
+        return datasets.Dataset.from_dict({'text':ds['chosen']+ds['rejected']}).map(tokenize, num_proc=1)
 
     def __len__(self):
         return len(self.data)
