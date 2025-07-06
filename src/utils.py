@@ -980,7 +980,7 @@ class Interpreter:
             data = json.load(f)
 
         latent_context_map = data.get('latent_context_map', {})
-        all_latents = list(latent_context_map.keys())
+        all_latents = set(latent_context_map.keys())
         sample_size = min(sample_latents, len(all_latents))
         sampled_indices = random.sample(range(len(all_latents)), sample_size)
         sampled_latents = [all_latents[i] for i in sorted(sampled_indices)]
@@ -988,8 +988,7 @@ class Interpreter:
         sampled_latents=[]
         pos_latents = torch.load('../pos_llama8b_sequence_Latent65536_Layer18_K192_1B.pt', weights_only=True).tolist()
         neg_latents = torch.load('../neg_llama8b_sequence_Latent65536_Layer18_K192_1B.pt', weights_only=True).tolist()
-        latents = pos_latents + neg_latents
-        latents_of_rm = [str(i) for i in latents]
+        latents_of_rm = [str(i) for i in pos_latents + neg_latents]
 
         for f in latents_of_rm:
             if f in all_latents:
