@@ -15,6 +15,7 @@ from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding,
     LlamaPreTrainedModel
 )
+from transformers.models.gemma2.configuration_gemma2 import Gemma2Config
 from transformers.models.gemma2.modeling_gemma2 import (
     Gemma2PreTrainedModel,
     Gemma2DecoderLayer,
