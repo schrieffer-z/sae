@@ -261,9 +261,14 @@ def get_language_model(cfg, model_path: str, device: torch.device) -> tuple:
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    language_model = MyLlamaModel.from_pretrained(
-        model_path, hidden_state_source_layer=cfg.layer,trust_remote_code=True, return_dict_in_generate=True, output_hidden_states=True, torch_dtype=torch.bfloat16
-    ).to(device)
+    if 'llama' in model_path.lower():        
+        language_model = MyLlamaModel.from_pretrained(
+            model_path, hidden_state_source_layer=cfg.layer,trust_remote_code=True, return_dict_in_generate=True, output_hidden_states=True, torch_dtype=torch.bfloat16
+        ).to(device)
+    elif 'gemma' in model_path.lower():        
+        language_model = MyGemma2Model.from_pretrained(
+            model_path, hidden_state_source_layer=cfg.layer,trust_remote_code=True, return_dict_in_generate=True, output_hidden_states=True, torch_dtype=torch.bfloat16
+        ).to(device)
     return tokenizer, language_model
 
 
@@ -373,8 +378,6 @@ class Trainer:
         mp=self.cfg.model_path
         if 'Llama' in self.cfg.model_path:
             self.title = mp[mp.find('Llama'):]+'_'+self.title
-        elif 'Qwen2.5' in self.cfg.model_path:
-            self.title = mp[mp.find('Qwen2.5'):]+'_'+self.title
         elif 'gemma' in self.cfg.model_path:
             self.title = mp[mp.find('gemma'):]+'_'+self.title
         else:
@@ -435,12 +438,13 @@ class Trainer:
                     # hidden_states=(bz, seq_len, d_model) -> (bz', d_model) 选出每个sequence包含在split_sent中的token's hidden state（包含",","--"作为加速手段）
                     hidden_states = torch.concat(h, dim=0)
                     
-                num_trained_tokens += hidden_states.view(-1, hidden_states.shape[-1]).shape[0]
                 x, _, _ = pre_process(hidden_states)
                 _, x_hat = self.model(x)
                 if self.cfg.sequence_or_token=='sequence':
+                    num_trained_tokens += hidden_states.view(-1, hidden_states.shape[-1]).shape[0]
                     loss = Normalized_MSE_loss(x, x_hat)
                 elif self.cfg.sequence_or_token=='token':
+                    # num_trained_tokens +=
                     loss = Masked_Normalized_MSE_loss(x, x_hat, batch[1])
                 else:
                     raise ValueError(f'unsupported train level {self.cfg.sequence_or_token}')
