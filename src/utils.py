@@ -259,6 +259,7 @@ def get_language_model(cfg, model_path: str, device: torch.device) -> tuple:
     '''
     print(model_path)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
+    tokenizer.padding_side = 'right'
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     if 'llama' in model_path.lower():        
@@ -444,7 +445,7 @@ class Trainer:
                     num_trained_tokens += hidden_states.view(-1, hidden_states.shape[-1]).shape[0]
                     loss = Normalized_MSE_loss(x, x_hat)
                 elif self.cfg.sequence_or_token=='token':
-                    # num_trained_tokens +=
+                    num_trained_tokens += batch[1].sum().item()
                     loss = Masked_Normalized_MSE_loss(x, x_hat, batch[1])
                 else:
                     raise ValueError(f'unsupported train level {self.cfg.sequence_or_token}')
