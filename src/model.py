@@ -15,6 +15,12 @@ from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding,
     LlamaPreTrainedModel
 )
+from transformers.models.gemma2.modeling_gemma2 import (
+    Gemma2PreTrainedModel,
+    Gemma2DecoderLayer,
+    Gemma2RMSNorm
+)
+
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 
 
