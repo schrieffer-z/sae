@@ -60,7 +60,7 @@ def parse_args():
     parser.add_argument('--SAE_path', type=str, required=False, help='Path to the trained SAE model file')
     parser.add_argument('--metric', type=str, required=False, help='Evaluation metric (e.g., "NormMSE", "DeltaCE", "KLDiv")')
 
-    parser.add_argument('--api_base', type=str, required=False, help='OpenAI api base')
+    parser.add_argument('--api_base', type=str, nargs='+', required=False, help='OpenAI api bases to try')
     parser.add_argument('--api_key', type=str, required=False, help='OpenAI api key')
     parser.add_argument('--api_version', type=str, required=False, help='OpenAI api version')
     parser.add_argument('--engine', type=str, required=False, help='OpenAI api engine (e.g., "gpt-4o", "gpt-4o-mini")')
@@ -981,11 +981,9 @@ class Interpreter:
 
         sampled_latents=[]
         with open(self.cfg.selected_latent_path, "r") as f:
-            loaded_data = json.load(f)
+            selected_latents = json.load(f)
         
-        pos_latents = torch.load('../pos_llama8b_sequence_Latent65536_Layer18_K192_1B.pt', weights_only=True).tolist()
-        neg_latents = torch.load('../neg_llama8b_sequence_Latent65536_Layer18_K192_1B.pt', weights_only=True).tolist()
-        latents_of_rm = [str(i) for i in pos_latents + neg_latents]
+        latents_of_rm = [str(i) for i in selected_latents.keys()]
 
         for f in latents_of_rm:
             if f in all_latents:
@@ -1029,7 +1027,7 @@ class Interpreter:
                     if -2 <= score <= 2:
                         results[latent_id] = {
                             'score': score,
-                            'weight': ,
+                            'weight': selected_latents[latent],
                             'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))]
                         }
                         total_score += score
@@ -1038,13 +1036,15 @@ class Interpreter:
                         print(f"Invalid score '{score}' for latent {latent_id}. Skipping.")
                         results[latent_id] = {
                             'score': None,
-                            'explanation': "Invalid score provided.",
+                            'weight': None,
+                            'contexts': None
                         }
                 else:
                     print(f"Failed to parse response for latent {latent_id}. Response: {response}")
                     results[latent_id] = {
                         'score': None,
-                        'explanation': "Failed to parse response.",
+                        'weight': None,
+                        'contexts': None
                     }
             except Exception as e:
                 print(f"Error processing latent {latent_id}: {e}")
