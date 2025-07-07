@@ -891,16 +891,6 @@ class Interpreter:
     def __init__(self, cfg):
         self.cfg = cfg
 
-    def calculate_cost(self, input_text: str, output_text: str) -> float:
-        encoding = tiktoken.encoding_for_model(self.cfg.engine)
-        num_input_tokens = len(encoding.encode(input_text))
-        num_output_tokens = len(encoding.encode(output_text))
-        if self.cfg.engine == 'gpt-4o':
-            return num_input_tokens * 2.5 / 1_000_000 + num_output_tokens * 10 / 1_000_000
-        elif self.cfg.engine == 'gpt-4o-mini':
-            return num_input_tokens * 0.15 / 1_000_000 + num_output_tokens * 0.6 / 1_000_000
-        else:
-            return 0.0
     
     def construct_prompt(self, tokens_info: dict) -> str:
         prompt = (
@@ -996,7 +986,6 @@ class Interpreter:
             for client in self.cfg.api_base
         ]
 
-        cost = 0.0
         results = {}
         total_score = 0.0
         scored_features = 0
@@ -1020,7 +1009,6 @@ class Interpreter:
             prompt = self.construct_prompt(tokens_info[:20])
             try:
                 response = self.chat_completion(clients, prompt)
-                cost += self.calculate_cost(prompt, response)
                 match = re.search(r"-?\d+", response)
                 if match:
                     score = int(match.group(0))
@@ -1053,22 +1041,17 @@ class Interpreter:
                     'explanation': "Error during processing.",
                 }
                 continue
-            avg_score = total_score / scored_features if scored_features > 0 else 0.0
+
             output_data = {
-                'cost': cost,
                 'engine': self.cfg.engine,
                 'features_scored': scored_features,
-                'average_score': avg_score,
                 'results': results,
             }
             save_json(output_data, output_path)
 
-        avg_score = total_score / scored_features if scored_features > 0 else 0.0
         output_data = {
-            'cost': cost,
             'engine': self.cfg.engine,
             'features_scored': scored_features,
-            'average_score': avg_score,
             'results': results,
         }
         save_json(output_data, output_path)
