@@ -908,9 +908,9 @@ class Interpreter:
             "Responses with higher scores are more likely to align with human preferences given a particular question.\n\n"
             
             "A Sparse Autoencoder (SAE) extracts human-interpretable features from the hidden states of a language model when provided with the concatenation of a question-response pair. "
-            "Ideally, each SAE feature activates only in response to a specific context type.\n\n"
+            "Ideally, each SAE feature activates only in response to a specific context.\n\n"
             
-            "Your task is to analyze whether the activation of a particular SAE feature (indicated by the presence of its corresponding context type) affects the likelihood that humans would prefer the response.\n"
+            "Your task is to analyze whether the activation of a particular SAE feature (indicated by the presence of its corresponding context) affects the likelihood that humans would prefer the response.\n"
             
             "Use the following scoring criteria:\n"
             "'-2': Activation of this feature (presence of this context) strongly decreases the likelihood of human preference.\n"
@@ -920,20 +920,16 @@ class Interpreter:
             "'2': Activation of this feature (presence of this context) strongly increases the likelihood of human preference.\n\n"
             
             "Important Notes:\n"
-            "- SAE feature activations occur when certain context types appear. Therefore, closely analyze the local semantics around the activated token, which is indicated between '<ACTIVATED>' and '</ACTIVATED>' tags.  \n"
-            "- Context before the activated token is particularly significant and should weigh more in your assessment than the context after.\n\n"
+            "- SAE feature activations occur when the corresponding context appear."
+            "- SAE feature activates on the last token of a sentence(\".\", \"!\", ...)"
+            "- SAE feature focus on the overall semantic of context"
+            
             
             "Provide your analysis strictly in the format below:\n\n"
             "Consider the following context in which a particular SAE feature activates:\n\n"
         )
         for info in tokens_info:
-            if "|>" in info['token'] or "<|" in info['token'] :
-                continue
-            ck = "|>\n\n" 
-            if ck in info['context']:
-                s = info['context']
-                info['context'] = s[s.rfind(ck)+len(ck):]
-            prompt += f"Token: {info['token']} | Context: {info['context']}\n\n"
+            prompt += f"Context: {info['context']}\n\n"
         prompt += (
             'Provide your response in the following fixed format:\n'
             "Score: [-2/-1/0/1/2]"
@@ -981,9 +977,6 @@ class Interpreter:
 
         latent_context_map = data.get('latent_context_map', {})
         all_latents = set(latent_context_map.keys())
-        sample_size = min(sample_latents, len(all_latents))
-        sampled_indices = random.sample(range(len(all_latents)), sample_size)
-        sampled_latents = [all_latents[i] for i in sorted(sampled_indices)]
 
         sampled_latents=[]
         pos_latents = torch.load('../pos_llama8b_sequence_Latent65536_Layer18_K192_1B.pt', weights_only=True).tolist()
@@ -994,8 +987,6 @@ class Interpreter:
             if f in all_latents:
                 sampled_latents.append(f)
                 
-
-
         client = OpenAI(
             api_key=self.cfg.api_key,  
             base_url=self.cfg.api_base,
@@ -1022,17 +1013,12 @@ class Interpreter:
             tokens_info = []
             for token_class, contexts in token_contexts.items():
                 for context in contexts:
-                    token = token_class
-                    if token.startswith('ġ'):
-                        token = ' ' + token[1:]
+                    tokens_info += context
+            filtered = [entry["context"] for entry in tokens_info if entry["activation"] > tokens_info]
 
-                    tokens_info.append({
-                        'token': token,
-                        'context': context['context'],
-                        'activation': context['activation'],
-                    })
+            filtered = random.sample(filtered, 20)
 
-            prompt = self.construct_prompt(tokens_info)
+            prompt = self.construct_prompt(filtered)
             try:
                 response = self.chat_completion(client, prompt)
                 cost += self.calculate_cost(prompt, response)
