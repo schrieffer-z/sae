@@ -987,7 +987,6 @@ class Interpreter:
         ]
 
         results = {}
-        total_score = 0.0
         scored_features = 0
 
         for latent in tqdm(sampled_latents):
@@ -1018,7 +1017,6 @@ class Interpreter:
                             'weight': selected_latents[latent],
                             'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))]
                         }
-                        total_score += score
                         scored_features += 1
                     else:
                         print(f"Invalid score '{score}' for latent {latent_id}. Skipping.")
