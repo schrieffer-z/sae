@@ -55,6 +55,7 @@ def parse_args():
 
 
     parser.add_argument('--apply_threshold', type=float, required=False)
+    parser.add_argument('--selected_latent_path', type=str, required=False)
     parser.add_argument('--resume_from', type=str, required=False, help='Path to a pretrained SAE state dict')
     parser.add_argument('--SAE_path', type=str, required=False, help='Path to the trained SAE model file')
     parser.add_argument('--metric', type=str, required=False, help='Evaluation metric (e.g., "NormMSE", "DeltaCE", "KLDiv")')
@@ -979,6 +980,9 @@ class Interpreter:
         all_latents = set(latent_context_map.keys())
 
         sampled_latents=[]
+        with open(self.cfg.selected_latent_path, "r") as f:
+            loaded_data = json.load(f)
+        
         pos_latents = torch.load('../pos_llama8b_sequence_Latent65536_Layer18_K192_1B.pt', weights_only=True).tolist()
         neg_latents = torch.load('../neg_llama8b_sequence_Latent65536_Layer18_K192_1B.pt', weights_only=True).tolist()
         latents_of_rm = [str(i) for i in pos_latents + neg_latents]
