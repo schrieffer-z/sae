@@ -62,7 +62,6 @@ def parse_args():
 
     parser.add_argument('--api_base', type=str, nargs='+', required=False, help='OpenAI api bases to try')
     parser.add_argument('--api_key', type=str, required=False, help='OpenAI api key')
-    parser.add_argument('--api_version', type=str, required=False, help='OpenAI api version')
     parser.add_argument('--engine', type=str, required=False, help='OpenAI api engine (e.g., "gpt-4o", "gpt-4o-mini")')
 
     parser.add_argument('--pipe_run', type=str, required=True, help='0000:nothing, train, evaluate, apply, interpret')
@@ -938,31 +937,32 @@ class Interpreter:
         return prompt
 
     def chat_completion(
-        self, client: AzureOpenAI, prompt: str, max_retry: int=3
+        self, clients: list, prompt: str, max_retry: int=3
     ) -> str:
         assert client is not None, 'Client is not set'
-        for attempt in range(1, max_retry + 1):
-            try:
-                chat_completion = client.chat.completions.create(
-                    messages=[
-                        {
-                            'role': 'system',
-                            'content': 'You are an assistant that helps explain the latent semantics of language models.',
-                        },
-                        {'role': 'user', 'content': prompt},
-                    ],
-                    model=self.cfg.engine,
-                    max_tokens=128,  
-                    temperature=0.1,
-                )
-                response_content = chat_completion.choices[0].message.content
-                assert response_content is not None, 'Response is None'
-                return response_content.strip()
-            except Exception as e:
-                if attempt == max_retry:
-                    print('Failed to get a response from the OpenAI API after multiple attempts.')
-                    raise e  
-        raise Exception('Failed to get a response from the OpenAI API')
+        for client in clients:
+            for attempt in range(1, max_retry + 1):
+                try:
+                    chat_completion = client.chat.completions.create(
+                        messages=[
+                            {
+                                'role': 'system',
+                                'content': 'You are an assistant that helps analyse the latent semantics of language models.',
+                            },
+                            {'role': 'user', 'content': prompt},
+                        ],
+                        model=self.cfg.engine,
+                        max_tokens=1,  
+                        temperature=0.1,
+                    )
+                    response_content = chat_completion.choices[0].message.content
+                    assert response_content is not None, 'Response is None'
+                    return response_content.strip()
+                except Exception as e:
+                    if attempt == max_retry:
+                        print('Failed to get a response from the OpenAI API after multiple attempts.')
+                        raise e  
+            raise Exception('Failed to get a response from the OpenAI API')
     
     def run(
         self, data_path: str=None, sample_latents: int=100, output_path: str=None
@@ -989,12 +989,12 @@ class Interpreter:
             if f in all_latents:
                 sampled_latents.append(f)
                 
-        client = OpenAI(
+        clients = [OpenAI(
             api_key=self.cfg.api_key,  
-            base_url=self.cfg.api_base,
+            base_url=client,
             timeout=60,
             max_retries=2
-        )
+        ) for client in self.cfg.api_base]
 
         cost = 0.0
         results = {}
@@ -1019,7 +1019,7 @@ class Interpreter:
 
             prompt = self.construct_prompt(tokens_info[:20])
             try:
-                response = self.chat_completion(client, prompt)
+                response = self.chat_completion(clients, prompt)
                 cost += self.calculate_cost(prompt, response)
                 match = re.search(r"-?\d+", response)
                 if match:
