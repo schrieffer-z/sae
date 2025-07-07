@@ -1005,7 +1005,7 @@ class Interpreter:
                 tokens_info += contexts
             tokens_info = sorted(tokens_info, key=lambda x: x['activation'], reverse=True)
 
-            prompt = self.construct_prompt(tokens_info[:20])
+            prompt = self.construct_prompt(tokens_info[:10])
             try:
                 response = self.chat_completion(clients, prompt)
                 match = re.search(r"-?\d+", response)
