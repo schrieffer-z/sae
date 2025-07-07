@@ -913,11 +913,11 @@ class Interpreter:
             "Your task is to analyze whether the activation of a particular SAE feature (indicated by the presence of its corresponding context) affects the likelihood that humans would prefer the response.\n"
             
             "Use the following scoring criteria:\n"
-            "'-2': Activation of this feature (presence of this context) strongly decreases the likelihood of human preference.\n"
-            "'-1': Activation of this feature (presence of this context) moderately decreases the likelihood of human preference.\n"
-            "'0': Activation of this feature (presence of this context) has a neutral effect on human preference.\n"
-            "'1': Activation of this feature (presence of this context) moderately increases the likelihood of human preference.\n"
-            "'2': Activation of this feature (presence of this context) strongly increases the likelihood of human preference.\n\n"
+            "'-2': Activation of this feature (presence of such context) strongly decreases the likelihood of human preference.\n"
+            "'-1': Activation of this feature (presence of such context) moderately decreases the likelihood of human preference.\n"
+            "'0': Activation of this feature (presence of such context) has a neutral effect on human preference.\n"
+            "'1': Activation of this feature (presence of such context) moderately increases the likelihood of human preference.\n"
+            "'2': Activation of this feature (presence of such context) strongly increases the likelihood of human preference.\n\n"
             
             "Important Notes:\n"
             "- SAE feature activations occur when the corresponding context appear."
@@ -1012,13 +1012,10 @@ class Interpreter:
             token_contexts = latent_context_map[latent]
             tokens_info = []
             for token_class, contexts in token_contexts.items():
-                for context in contexts:
-                    tokens_info += context
-            filtered = [entry["context"] for entry in tokens_info if entry["activation"] > tokens_info]
+                tokens_info += contexts
+            tokens_info = sorted(tokens_info, key=lambda x: x['activation'], reverse=True)
 
-            filtered = random.sample(filtered, 20)
-
-            prompt = self.construct_prompt(filtered)
+            prompt = self.construct_prompt(tokens_info[:20])
             try:
                 response = self.chat_completion(client, prompt)
                 cost += self.calculate_cost(prompt, response)
@@ -1028,6 +1025,7 @@ class Interpreter:
                     if -2 <= score <= 2:
                         results[latent_id] = {
                             'score': score,
+                            'weight': ,
                             'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))]
                         }
                         total_score += score
