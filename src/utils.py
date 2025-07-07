@@ -937,7 +937,7 @@ class Interpreter:
         return prompt
 
     def chat_completion(
-        self, clients: list, prompt: str, max_retry: int=3
+        self, clients: list, prompt: str, max_retry: int=2
     ) -> str:
         assert clients is not None, 'Client is not set'
         for client in clients:
@@ -952,17 +952,15 @@ class Interpreter:
                             {'role': 'user', 'content': prompt},
                         ],
                         model=self.cfg.engine,
-                        max_tokens=1,  
-                        temperature=0.1,
+                        max_tokens=4,  
+                        temperature=0,
                     )
                     response_content = chat_completion.choices[0].message.content
                     assert response_content is not None, 'Response is None'
                     return response_content.strip()
-                except Exception as e:
-                    if attempt == max_retry:
-                        print('Failed to get a response from the OpenAI API after multiple attempts.')
-                        raise e  
-            raise Exception('Failed to get a response from the OpenAI API')
+                except:
+                    continue
+        raise Exception('Failed to get a response from the OpenAI API')
     
     def run(
         self, data_path: str=None, sample_latents: int=100, output_path: str=None
@@ -989,12 +987,14 @@ class Interpreter:
             if f in all_latents:
                 sampled_latents.append(f)
                 
-        clients = [OpenAI(
-            api_key=self.cfg.api_key,  
-            base_url=client,
-            timeout=60,
-            max_retries=2
-        ) for client in self.cfg.api_base]
+        clients = [
+            OpenAI(
+                api_key=self.cfg.api_key,  
+                base_url=client,
+                timeout=60,
+                max_retries=2) 
+            for client in self.cfg.api_base
+        ]
 
         cost = 0.0
         results = {}
@@ -1053,6 +1053,16 @@ class Interpreter:
                     'explanation': "Error during processing.",
                 }
                 continue
+            avg_score = total_score / scored_features if scored_features > 0 else 0.0
+            output_data = {
+                'cost': cost,
+                'engine': self.cfg.engine,
+                'features_scored': scored_features,
+                'average_score': avg_score,
+                'results': results,
+            }
+            save_json(output_data, output_path)
+
         avg_score = total_score / scored_features if scored_features > 0 else 0.0
         output_data = {
             'cost': cost,
