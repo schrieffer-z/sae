@@ -939,7 +939,7 @@ class Interpreter:
     def chat_completion(
         self, clients: list, prompt: str, max_retry: int=3
     ) -> str:
-        assert client is not None, 'Client is not set'
+        assert clients is not None, 'Client is not set'
         for client in clients:
             for attempt in range(1, max_retry + 1):
                 try:
