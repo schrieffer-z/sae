@@ -1103,7 +1103,7 @@ class Interpreter:
         ]
 
         results = {}
-        scored_features = 0
+        self.scored_features = 0
         for latent in tqdm(sampled_latents):
             try:
                 latent_id = int(latent)
@@ -1122,10 +1122,10 @@ class Interpreter:
             
             if self.cfg.explanation_or_score=='score':
                 prompt = self.construct_score_prompt(tokens_info[:self.cfg.context_per_latent])
-                self.chat_and_process_score(prompt)
+                self.chat_and_process_score(prompt, tokens_info)
             elif self.cfg.explanation_or_score=='explanation':
                 prompt = self.construct_explain_prompt(tokens_info[:self.cfg.context_per_latent])
-                chat_and_process_explain(prompt)
+                chat_and_process_explain(prompt, tokens_info)
             else:
                 raise ValueError(f'choose explanation_or_score from [explanation, score], you are using {self.cfg.explanation_or_score}')
         
