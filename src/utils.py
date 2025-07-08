@@ -1015,7 +1015,9 @@ class Interpreter:
                         results[latent_id] = {
                             'score': score,
                             'weight': selected_latents[latent],
-                            'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))]
+                            'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))],
+                            'prompt': prompt,
+                            'response': response
                         }
                         scored_features += 1
                     else:
@@ -1023,14 +1025,18 @@ class Interpreter:
                         results[latent_id] = {
                             'score': None,
                             'weight': None,
-                            'contexts': None
+                            'contexts': None,
+                            'prompt': prompt,
+                            'response': response
                         }
                 else:
                     print(f"Failed to parse response for latent {latent_id}. Response: {response}")
                     results[latent_id] = {
                         'score': None,
                         'weight': None,
-                        'contexts': None
+                        'contexts': None,
+                        'prompt': prompt,
+                        'response': response
                     }
             except Exception as e:
                 print(f"Error processing latent {latent_id}: {e}")
