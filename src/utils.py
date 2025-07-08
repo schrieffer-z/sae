@@ -465,14 +465,6 @@ class Trainer:
                 save_ats = np.round(len(self.dataloader)*np.linspace(0,1,10))[1:-1].astype(np.int64)
                 if (global_step_idx in save_ats):
                     title = self.title + f'@step{global_step_idx}'
-                    mp=self.cfg.model_path
-                    if 'Llama' in self.cfg.model_path:
-                        title = mp[mp.find('Llama'):]+'_'+title
-                    elif 'Qwen2.5' in self.cfg.model_path:
-                        title = mp[mp.find('Qwen2.5'):]+'_'+title
-                    elif 'gemma' in self.cfg.model_path:
-                        title = mp[mp.find('gemma'):]+'_'+title
-                    
                     os.makedirs(os.path.join(self.cfg.output_path, 'tmp'), exist_ok=True)
                     torch.save(self.model.state_dict(), os.path.join(self.cfg.output_path, 'tmp', f'{title}.pt'))
         
@@ -791,8 +783,8 @@ class SequenceApplier:
         self.dataloader = create_dataloader(self.cfg.dataset_name, self.cfg.data_path, self.tokenizer, self.cfg.batch_size, self.cfg.max_length)
         
         sentence_enders = [
-            '?',    '.',   ';',    '!',
-            ' ?',   ' .',  ' ;',   ' !',
+            '?',    '.',   ';',    '!',     "\"",
+            ' ?',   ' .',  ' ;',   ' !',    " \"",
             '<|end_of_text|>',
             '<|eot_id|>' 
         ]
@@ -817,7 +809,7 @@ class SequenceApplier:
                 tokens = self.tokenizer.convert_ids_to_tokens(input_ids[i])
                 assert tokens[25] == '<|eot_id|>' # system message长度是固定值
 
-                prev_pos = 26
+                prev_pos = [26]
                 latent_indices = torch.nonzero(positions[i], as_tuple=False)
                 for pos in range(26, seq_len[i]+1):
                     if input_ids[i][pos] not in sentence_enders_tokens:
@@ -830,7 +822,10 @@ class SequenceApplier:
                         assert _pos==pos
 
                         activation_value = latents[i, pos, latent_dim].item()
-                        raw = self.tokenizer.convert_tokens_to_ids(tokens[prev_pos:pos+1])
+                        context_start_idx = len(prev_pos)-1
+                        while(pos + 1 - prev_pos[context_start_idx]<10 and context_start_idx>0):
+                            context_start_idx -= 1
+                        raw = self.tokenizer.convert_tokens_to_ids(tokens[prev_pos[context_start_idx]:pos+1])
                         context_text = self.tokenizer.decode(raw).strip()
                         
                         assert len(ckmap)==len(latent_context_map)
@@ -843,7 +838,7 @@ class SequenceApplier:
                         if len(heap) > max_per_token:
                             heapq.heappop(heap)
                         
-                    prev_pos = pos + 1
+                    prev_pos.append(pos + 1)
 
             save_ats = np.round(len(self.dataloader)*np.linspace(0,1,11))[1:-1].astype(np.int64)
             if (global_step_idx in save_ats):
@@ -894,35 +889,38 @@ class Interpreter:
     
     def construct_prompt(self, tokens_info: dict) -> str:
         prompt = (
-            "A reward model outputs a scalar representing the quality of a model-generated response. "
-            "Responses with higher scores are more likely to align with human preferences given a particular question.\n\n"
-            
-            "A Sparse Autoencoder (SAE) extracts human-interpretable features from the hidden states of a language model when provided with the concatenation of a question-response pair. "
-            "Ideally, each SAE feature activates only in response to a specific context.\n\n"
-            
-            "Your task is to analyze whether the activation of a particular SAE feature (indicated by the presence of its corresponding context) affects the likelihood that humans would prefer the response.\n"
-            
-            "Use the following scoring criteria:\n"
-            "'-2': Activation of this feature (presence of such context) strongly decreases the likelihood of human preference.\n"
-            "'-1': Activation of this feature (presence of such context) moderately decreases the likelihood of human preference.\n"
-            "'0': Activation of this feature (presence of such context) has a neutral effect on human preference.\n"
-            "'1': Activation of this feature (presence of such context) moderately increases the likelihood of human preference.\n"
-            "'2': Activation of this feature (presence of such context) strongly increases the likelihood of human preference.\n\n"
-            
-            "Important Notes:\n"
-            "- SAE feature activations occur when the corresponding context appear."
-            "- SAE feature activates on the last token of a sentence(\".\", \"!\", ...)"
-            "- SAE feature focus on the overall semantic of context"
-            
-            
-            "Provide your analysis strictly in the format below:\n\n"
-            "Consider the following context in which a particular SAE feature activates:\n\n"
+            "A reward model outputs a **single scalar** estimating how well a model-generated response "
+            "aligns with human preferences for a given question.\n\n"
+
+            "A Sparse Autoencoder (SAE) extracts human-interpretable features from the hidden states of "
+            "a language model fed with a concatenated **question + response**. Ideally, each feature "
+            "activates only for a specific context.\n\n"
+
+            "Your task: judge whether activation of a particular SAE feature "
+            "(i.e., the presence of its associated context) makes humans **more or less** likely to prefer the response.\n\n"
+
+            "Scoring scale:\n"
+            "  2  : Strongly increases human preference\n"
+            "  1  : Moderately increases human preference\n"
+            "  0  : Neutral / no clear effect\n"
+            " -1  : Moderately decreases human preference\n"
+            " -2  : Strongly decreases human preference\n\n"
+
+            "Important notes:\n"
+            "• The feature fires **when its context appears** in the text.\n"
+            "• It typically activates on the **final token of a sentence** (e.g. '.', '!').\n"
+            "• Judge the **overall meaning** of the context, not surface details.\n\n"
+
+            "Respond **exactly** in the following format (replace X and your explanation):\n"
+            "Explanation: <30-60 words explaining your reasoning>\n"
+            "Score: X  (choose from -2, -1, 0, 1, 2)\n\n"
+
+            "Consider the context snippets below in which the feature activates:\n\n"
         )
         for info in tokens_info:
             prompt += f"Context: {info['context']}\n\n"
         prompt += (
-            'Provide your response in the following fixed format:\n'
-            "Score: [-2/-1/0/1/2]"
+            "Now provide your two-line answer.\n"
         )
         return prompt
 
