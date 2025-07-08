@@ -1014,24 +1014,23 @@ class Interpreter:
         try:
             response = self.chat_completion(self.clients, prompt)
             explanation, score = extract_explanation_and_score(response)
-
-            if match:
-                if -2 <= score <= 2:
-                    self.results[latent_id] = {
-                        'score': score,
-                        'explanation': explanation,
-                        'weight': selected_latents[str(latent_id)],
-                        'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))],
-                        'prompt': prompt,
-                        'response': response
-                    }
-                    self.scored_features += 1
+            
+            if -2 <= score <= 2:
+                self.results[latent_id] = {
+                    'score': score,
+                    'explanation': explanation,
+                    'weight': self.selected_latents[str(latent_id)],
+                    'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))],
+                    'prompt': prompt,
+                    'response': response
+                }
+                self.scored_features += 1
         except Exception as e:
             print(f"Error processing latent {latent_id}: {e}")
             self.results[latent_id] = {
                 'score': None,
                 'explanation': None,
-                'weight': selected_latents[str(latent_id)],
+                'weight': self.selected_latents[str(latent_id)],
                 'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))],
                 'prompt': prompt,
                 'response': response if response is not None else None
@@ -1080,7 +1079,7 @@ class Interpreter:
             data_path = self.cfg.data_path
 
         if output_path is None:
-            self.output_path = f'../interpret/interp_{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}.json'
+            self.output_path = f'../interpret/interp_{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{self.cfg.explanation_or_score}.json'
 
         with open(data_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
