@@ -942,9 +942,10 @@ class Interpreter:
         )
         return prompt
 
-    def chat_and_process_explain(self, prompt: str, tokens_info):
+    def chat_and_process_score(self, latent_id: int, prompt: str, tokens_info):
+        response = None
         try:
-            response = self.chat_completion(self.cfg.clients, prompt)
+            response = self.chat_completion(self.clients, prompt)
             match = re.search(r"-?\d+", response)
             if match:
                 score = int(match.group(0))
@@ -960,11 +961,11 @@ class Interpreter:
         except Exception as e:
             print(f"Error processing latent {latent_id}: {e}")
             self.results[latent_id] = {
-                'score': score,
-                'weight': self.selected_latents[latent],
-                'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))],
+                'score': None,
+                'weight': self.selected_latents[str(latent_id)],
+                'contexts': None,
                 'prompt': prompt,
-                'response': response
+                'response': response if response is not None else None
             }
 
         output_data = {
@@ -1008,9 +1009,10 @@ class Interpreter:
         prompt += "Now provide your two-line answer."
         return prompt
 
-    def chat_and_process_explain(self, prompt: str, tokens_info):
+    def chat_and_process_explain(self, latent_id: int, prompt: str, tokens_info):
+        response = None
         try:
-            response = self.chat_completion(self.cfg.clients, prompt)
+            response = self.chat_completion(self.clients, prompt)
             explanation, score = extract_explanation_and_score(response)
 
             if match:
@@ -1018,7 +1020,7 @@ class Interpreter:
                     self.results[latent_id] = {
                         'score': score,
                         'explanation': explanation,
-                        'weight': selected_latents[latent],
+                        'weight': selected_latents[str(latent_id)],
                         'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))],
                         'prompt': prompt,
                         'response': response
@@ -1027,12 +1029,12 @@ class Interpreter:
         except Exception as e:
             print(f"Error processing latent {latent_id}: {e}")
             self.results[latent_id] = {
-                'score': score,
-                'explanation': explanation,
-                'weight': selected_latents[latent],
+                'score': None,
+                'explanation': None,
+                'weight': selected_latents[str(latent_id)],
                 'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))],
                 'prompt': prompt,
-                'response': response
+                'response': response if response is not None else None
             }
 
         output_data = {
@@ -1086,7 +1088,7 @@ class Interpreter:
 
         with open(self.cfg.selected_latent_path, "r") as f:
             self.selected_latents = json.load(f)
-        latents_of_rm = [str(i) for i in selected_latents.keys()]
+        latents_of_rm = [str(i) for i in self.selected_latents.keys()]
 
         sampled_latents=[]
         for f in latents_of_rm:
@@ -1102,7 +1104,7 @@ class Interpreter:
             for client in self.cfg.api_base
         ]
 
-        results = {}
+        self.results = {}
         self.scored_features = 0
         for latent in tqdm(sampled_latents):
             try:
@@ -1122,10 +1124,10 @@ class Interpreter:
             
             if self.cfg.explanation_or_score=='score':
                 prompt = self.construct_score_prompt(tokens_info[:self.cfg.context_per_latent])
-                self.chat_and_process_score(prompt, tokens_info)
+                self.chat_and_process_score(latent_id, prompt, tokens_info)
             elif self.cfg.explanation_or_score=='explanation':
                 prompt = self.construct_explain_prompt(tokens_info[:self.cfg.context_per_latent])
-                chat_and_process_explain(prompt, tokens_info)
+                chat_and_process_explain(latent_id, prompt, tokens_info)
             else:
                 raise ValueError(f'choose explanation_or_score from [explanation, score], you are using {self.cfg.explanation_or_score}')
         
