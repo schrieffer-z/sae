@@ -791,8 +791,8 @@ class SequenceApplier:
         self.dataloader = create_dataloader(self.cfg.dataset_name, self.cfg.data_path, self.tokenizer, self.cfg.batch_size, self.cfg.max_length)
         
         sentence_enders = [
-            '?',    '.',   ';',    '!',     '"',
-            ' ?',   ' .',  ' ;',   ' !',    ' "',
+            '?',    '.',   ';',    '!',
+            ' ?',   ' .',  ' ;',   ' !',
             '<|end_of_text|>',
             '<|eot_id|>' 
         ]
@@ -1111,7 +1111,7 @@ class SAE_pipeline:
             raise ValueError(f'Unsupport train level--{self.cfg.sequence_or_token}')
 
         self.result_dict[f'Features'], self.context_path = applier.get_context(
-            threshold=self.cfg.apply_threshold, max_length=96
+            threshold=self.cfg.apply_threshold, max_length=self.cfg.max_length
         )
         del applier
         torch.cuda.empty_cache()
