@@ -341,7 +341,6 @@ def unit_norm_decoder(model: TopkSAE) -> None:
 def save_json(data, path):
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-    print(f'Saved data to {path}')
 
 
 def hook_SAE(
@@ -952,7 +951,7 @@ class Interpreter:
                 if -2 <= score <= 2:
                     self.results[latent_id] = {
                         'score': score,
-                        'weight': self.selected_latents[latent],
+                        'weight': self.selected_latents[str(latent_id)],
                         'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))],
                         'prompt': prompt,
                         'response': response
@@ -974,6 +973,7 @@ class Interpreter:
             'results': self.results,
         }
         save_json(output_data, self.output_path)
+        print(f'Saved data to {self.output_path}')
     
     def construct_explain_prompt(self, tokens_info: list[dict]) -> str:
         prompt = (
@@ -1043,6 +1043,7 @@ class Interpreter:
             'results': self.results,
         }
         save_json(output_data, self.output_path)
+        print(f'Saved data to {self.output_path}')
 
 
 
@@ -1127,7 +1128,7 @@ class Interpreter:
                 self.chat_and_process_score(latent_id, prompt, tokens_info)
             elif self.cfg.explanation_or_score=='explanation':
                 prompt = self.construct_explain_prompt(tokens_info[:self.cfg.context_per_latent])
-                chat_and_process_explain(latent_id, prompt, tokens_info)
+                self.chat_and_process_explain(latent_id, prompt, tokens_info)
             else:
                 raise ValueError(f'choose explanation_or_score from [explanation, score], you are using {self.cfg.explanation_or_score}')
         
