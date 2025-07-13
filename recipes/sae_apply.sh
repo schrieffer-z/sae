@@ -30,7 +30,7 @@ model_path=...
 sequence_or_token=sequence
 apply_threshold=5
 
-batch_size=192
+batch_size=8
 # sequence：512 （因为平均而言，对话的长度都很大，所以至少需要512）
 max_length=512
 device=cuda:0
