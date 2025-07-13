@@ -52,4 +52,17 @@ python -u main.py --model_path $model_path --hidden_size $hidden_size \
     --pipe_data_path $train_data_path $eval_data_path $apply_data_path --layer $layer --latent_size $latent_size \
     --batch_size $batch_size --max_length $max_length --lr 5e-4 --betas 0.9 0.999 --num_epochs 1 --seed 42 --steps 10 --use_wandb $use_wandb \
     --pipe_project $train_project $eval_project $pipe_project --device $device --k $k \
-    --api_base $api_base --api_key $api_key --api_version $api_version --engine $engine --SAE_path $applied_model
+    --api_base $api_base --api_key $api_key --api_version $api_version --engine $engine --SAE_path $applied_model \
+    --split_index 0 --split_num 2 > ../log/1.log 2>&1 &
+
+python -u main.py --model_path $model_path --hidden_size $hidden_size \
+    --pipe_run $pipe_run \
+    --sequence_or_token $sequence_or_token \
+    --apply_threshold $apply_threshold \
+    --dataset_name $dataset_name \
+    --output_path $output_path \
+    --pipe_data_path $train_data_path $eval_data_path $apply_data_path --layer $layer --latent_size $latent_size \
+    --batch_size $batch_size --max_length $max_length --lr 5e-4 --betas 0.9 0.999 --num_epochs 1 --seed 42 --steps 10 --use_wandb $use_wandb \
+    --pipe_project $train_project $eval_project $pipe_project --device $device --k $k \
+    --api_base $api_base --api_key $api_key --api_version $api_version --engine $engine --SAE_path $applied_model \
+    --split_index 1 --split_num 2 > ../log/2.log 2>&1 &
