@@ -38,12 +38,14 @@ use_wandb=0
 # 0000是字符，0/1表示在[train, evaluate, apply, interpret]这4个位置是否执行，例如1010表示[train, apply]
 pipe_run=1000
 output_path=../SAE_models
+resume_froms=...
 
 echo pipe_run:$pipe_run
 echo $sequence_or_token, $layer, $k
 echo $hidden_size, $latent_size
 python -u main.py --model_path $model_path --hidden_size $hidden_size \
     --pipe_run $pipe_run \
+    --resume_form $resume_form \
     --sequence_or_token $sequence_or_token \
     --apply_threshold $apply_threshold \
     --dataset_name $dataset_name \
@@ -52,4 +54,3 @@ python -u main.py --model_path $model_path --hidden_size $hidden_size \
     --batch_size $batch_size --max_length $max_length --lr 5e-4 --betas 0.9 0.999 --num_epochs 1 --seed 42 --steps 10 --use_wandb $use_wandb \
     --pipe_project $train_project $eval_project $pipe_project --device $device --k $k \
     --api_base $api_base --api_key $api_key --api_version $api_version --engine $engine
-

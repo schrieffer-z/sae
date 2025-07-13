@@ -1,8 +1,8 @@
 cd src
 
 # GPT interpret Setting
-api_base="https://api.nuwaapi.com https://api.nuwaapi.com/v1 https://api.nuwaapi.com/v1/chat/completions"
-api_key=sk-knicYdeRjjUN74jnfkNBjEMPMTAL33BT6bKz9ZbS6blcSP5z
+api_base=
+api_key=
 engine=gpt-4o
 
 # Wandb Setting
@@ -18,7 +18,7 @@ apply_threshold=5
 
 use_wandb=0
 pipe_run=0001
-output_path=/NAS/zhangsy/SAE_models
+output_path=...
 selected_latent_path=../llama8b_sequence_Latent65536_Layer16_K192_1B.json
 
 echo pipe_run:$pipe_run
