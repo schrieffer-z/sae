@@ -55,6 +55,9 @@ def parse_args():
 
 
     parser.add_argument('--apply_threshold', type=float, required=False)
+    parser.add_argument('--split_index', type=int, required=False)
+    parser.add_argument('--split_num', type=int, required=False)
+
     parser.add_argument('--selected_latent_path', type=str, required=False)
     parser.add_argument('--resume_from', type=str, required=False, help='Path to a pretrained SAE state dict')
     parser.add_argument('--SAE_path', type=str, required=False, help='Path to the trained SAE model file')
@@ -192,14 +195,23 @@ class Preference(Dataset):
                  pref_data_path : str,
                  tokenizer: AutoTokenizer, 
                  max_length: int,
+                 split_index: int, 
+                 split_num: int,
         ):
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.pref_data_path = pref_data_path
+        self.split_index = split_index
+        self.split_num = split_num
         self.data = self.load_data()
 
     def load_data(self):
         ds = datasets.load_dataset('parquet', data_dir=self.pref_data_path)['train'].shuffle(seed=42)
+        print(f'Spliting dataset of {len(ds)} pairs into {self.split_num} part.')
+        split_pos = torch.linspace(0,len(ds),self.split_num+1)
+        st, ed = int(split_pos[self.split_index]), int(split_pos[self.split_index+1])
+        ds = datasets.Dataset.from_dict(ds[st:ed])
+        print(f'This process is using index:{self.split_index}(dataset[{st}:{ed}]).')
         tokenizer = self.tokenizer
         def tokenize(sample):
             formated_text = tokenizer.apply_chat_template(sample['text'], tokenize=False, add_generation_prompt=False)
@@ -227,12 +239,14 @@ def create_dataloader(
     tokenizer: AutoTokenizer, 
     batch_size: int, 
     max_length: int,
-    keyword: str = 'text'
+    keyword: str = 'text',
+    split_index: int=0,
+    split_num: int=1,
 ) -> DataLoader:
     if dataset_name=='corpus':
         dataset = OpenWebText(folder_path, tokenizer, max_length, keyword)
     elif 'preference' in dataset_name.lower():
-        dataset = Preference(folder_path, tokenizer, max_length)
+        dataset = Preference(folder_path, tokenizer, max_length, split_index, split_num)
     else:
         raise ValueError(f"Unsupported dataset: {dataset_name}")
 
@@ -785,21 +799,21 @@ class SequenceApplier:
     @torch.no_grad()
     def get_context(
         self, 
-        threshold: float = 3.0, 
-        max_length: int = 96, 
-        max_per_token: int = 256, 
+        threshold: float = 5.0, 
+        max_length: int = 1024, 
+        max_per_token: int = 1024, 
         lines: int = 4,  
         output_path=None
     ):
     # get_context 需要修改，仅针对特定的latents进行context提取。
-        title = f'{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}.json'
+        title = f'{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}_split-{self.cfg.split_index}-{self.cfg.split_num}.json'
         if self.cfg.output_path is None:
             output_path = os.path.join("../contexts/", title)
         else:
             output_path = os.path.join(self.cfg.output_path, title)
 
         self.tokenizer, self.language_model = get_language_model(self.cfg, self.cfg.model_path, self.device)
-        self.dataloader = create_dataloader(self.cfg.dataset_name, self.cfg.data_path, self.tokenizer, self.cfg.batch_size, self.cfg.max_length)
+        self.dataloader = create_dataloader(self.cfg.dataset_name, self.cfg.data_path, self.tokenizer, self.cfg.batch_size, max_length, split_index=self.cfg.split_index, split_num=self.cfg.split_num)
         
         sentence_enders = [
             '?',    '.',   ';',    '!',     "\"",
@@ -820,7 +834,7 @@ class SequenceApplier:
             batch_size, seq_len, _ = latents.shape
             positions = (latents > threshold)
 
-            position_ids = torch.arange(self.cfg.max_length, dtype=torch.long)
+            position_ids = torch.arange(max_length, dtype=torch.long)
             position_ids = position_ids * batch[1]
             seq_len = torch.max(position_ids, dim=1).values
 
@@ -862,7 +876,7 @@ class SequenceApplier:
             save_ats = np.round(len(self.dataloader)*np.linspace(0,1,11))[1:-1].astype(np.int64)
             if (global_step_idx in save_ats):
                 base_t = os.path.join(self.cfg.output_path if self.cfg.output_path is not None else '../contexts/', 'tmp')
-                title_t = f'{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}@step{global_step_idx}.json'
+                title_t = f'{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{threshold}_split-{self.cfg.split_index}-{self.cfg.split_num}@step{global_step_idx}.json'
                 
                 os.makedirs(base_t, exist_ok=True)
                 output_path_tmp = os.path.join(base_t, title_t)
@@ -1107,15 +1121,8 @@ class Interpreter:
         self.results = {}
         self.scored_features = 0
         for latent in tqdm(sampled_latents):
-            try:
-                latent_id = int(latent)
-            except ValueError:
-                print(f"Invalid latent ID {latent}. Skipping.")
-                results[latent] = {
-                    'score': None,
-                    'explanation': "Invalid latent ID.",
-                }
-                continue
+            latent_id = int(latent)
+
             token_contexts = latent_context_map[latent]
             tokens_info = []
             for token_class, contexts in token_contexts.items():
@@ -1131,8 +1138,7 @@ class Interpreter:
             else:
                 raise ValueError(f'choose explanation_or_score from [explanation, score], you are using {self.cfg.explanation_or_score}')
         
-
-        return avg_score
+        return
 
 
 class SAE_pipeline:
@@ -1175,6 +1181,8 @@ class SAE_pipeline:
             torch.cuda.empty_cache()
 
     def apply(self):
+        assert self.cfg.split_index is not None
+        assert self.cfg.split_num is not None
         self.cfg.data_path = self.cfg.pipe_data_path[2]
         if self.cfg.sequence_or_token == 'token':
             applier = Applier(self.cfg)
@@ -1194,8 +1202,7 @@ class SAE_pipeline:
             self.context_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{self.cfg.apply_threshold}.json'
         self.cfg.data_path = self.context_path
         interpreter = Interpreter(self.cfg)
-        score = interpreter.run()
-        self.result_dict[f'Score'] = score
+        interpreter.run()
         del interpreter
 
     def run(self):
