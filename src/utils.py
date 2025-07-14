@@ -53,7 +53,7 @@ def parse_args():
     parser.add_argument('--layer', type=int, required=False, help='Target layer index, start with 1')
     parser.add_argument('--steps', type=int, required=False, help='Number of step batches for unit norm decoder')
 
-
+    # apply
     parser.add_argument('--apply_threshold', type=float, required=False)
     parser.add_argument('--split_index', type=int, required=False)
     parser.add_argument('--split_num', type=int, required=False)
@@ -66,6 +66,9 @@ def parse_args():
     parser.add_argument('--api_base', type=str, nargs='+', required=False, help='OpenAI api bases to try')
     parser.add_argument('--api_key', type=str, required=False, help='OpenAI api key')
     parser.add_argument('--engine', type=str, required=False, help='OpenAI api engine (e.g., "gpt-4o", "gpt-4o-mini")')
+    
+    # interpret
+    parser.add_argument('--context_path', type=str, required=False, help='Path to the specified context file')
     parser.add_argument('--context_per_latent', type=int, default=10, help='use context_per_latent contexts as prompt')
     parser.add_argument('--explanation_or_score', type=str, default='score', help='explain latent or score latent')
 
@@ -1198,8 +1201,10 @@ class SAE_pipeline:
         torch.cuda.empty_cache()
 
     def interpret(self):
-        if self.cfg.pipe_run[2]=='0':
+        if self.cfg.context_path is None:
             self.context_path = f'../contexts/{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{self.cfg.apply_threshold}.json'
+        else:
+            self.context_path = self.cfg.context_path 
         self.cfg.data_path = self.context_path
         interpreter = Interpreter(self.cfg)
         interpreter.run()

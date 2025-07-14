@@ -1,7 +1,15 @@
-model_name = ''
+model_name = '/NAS/zhangsy/sarm_models/Llama-3.1-8B-Instruct_sequence_Latent65536_Layer16_K192_1B-SARM-woTopK-LastToken-0/checkpoint-150'
+context_path = './contexts/backup/Llama-3.1-8B-Instruct_sequence_Latent65536_Layer16_K192_1B_5.0.json'
+
+
+import json
+with open(context_path, 'r', encoding='utf-8') as f:
+    data = json.load(f)
+latent_context_map = data.get('latent_context_map', {})
+all_latents = set(latent_context_map.keys())
 
 import os
-import json
+
 import torch
 from safetensors.torch import load_file
 
@@ -15,13 +23,17 @@ if os.path.exists(weight_map_path):
 else:
     score_weights = load_file(os.path.join(model_name,"model.safetensors"))['score.weight'].view(-1)
 
-topk = torch.topk(score_weights, 200, dim=-1)
-pos = {str(latent.item()):act.item() for latent, act in zip(topk.indices, topk.values)}
-topk = torch.topk(-score_weights, 200, dim=-1)
-neg = {str(latent.item()):-act.item() for latent, act in zip(topk.indices, topk.values)}
+latent_list = []
+for latent in all_latents:
+    latent_list.append( {latent:score_weights[int(latent)].item()} )
 
-pos.update(neg)
+latent_list.sort(key=lambda x: list(x.values())[0], reverse=True)
+
+selected_latent_dict = dict()
+selected_latent_list = latent_list[:100] + latent_list[-100:]
+for i in selected_latent_list:
+    selected_latent_dict.update(i)
 
 
 with open('a.json', 'w') as f:
-    json.dump(pos, f, indent=4)
+    json.dump(selected_latent_dict, f, indent=4)
