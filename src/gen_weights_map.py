@@ -63,6 +63,6 @@ if __name__ == '__main__':
         model_name=args.model_name,
         context_path=args.context_path,
         top_k_list=args.top_k_list,
-        output_dir=args.output_dir
+        output_dir=args.output_dir,
         output_name=args.output_name
     )
