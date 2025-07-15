@@ -10,16 +10,13 @@ train_project=SAE4RM-train-SAE
 eval_project=SAE4RM-eval-SAE
 pipe_project=SAE4RM-pipe-SAE
 
-# Training Setting
+# Interpret Setting
 apply_threshold=5
-
-
-
 
 use_wandb=0
 pipe_run=0001
 output_path=...
-selected_latent_path=../llama8b_sequence_Latent65536_Layer16_K192_1B.json
+selected_latent_path=...
 
 echo pipe_run:$pipe_run
 echo $sequence_or_token, $layer, $k

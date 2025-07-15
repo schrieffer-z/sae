@@ -3,7 +3,6 @@ cd src
 # GPT interpret Setting
 api_base=...
 api_key=...
-api_version=2024-03-01-preview
 engine=gpt-4o
 
 # Wandb Setting
@@ -53,4 +52,4 @@ python -u main.py --model_path $model_path --hidden_size $hidden_size \
     --pipe_data_path $train_data_path $eval_data_path $apply_data_path --layer $layer --latent_size $latent_size \
     --batch_size $batch_size --max_length $max_length --lr 5e-4 --betas 0.9 0.999 --num_epochs 1 --seed 42 --steps 10 --use_wandb $use_wandb \
     --pipe_project $train_project $eval_project $pipe_project --device $device --k $k \
-    --api_base $api_base --api_key $api_key --api_version $api_version --engine $engine
+    --api_base $api_base --api_key $api_key --engine $engine
