@@ -947,37 +947,43 @@ class Interpreter:
             "• Judge the **overall meaning** of the context, not surface details.\n\n"
 
             "Respond **exactly** in the following format (replace content in [] following the requirements in []):\n"
-            "Score: [Choose from -2, -1, 0, 1, 2]\n\n"
+            "Explanation: [A sentence to summary the shared concept of contexts activating the latent]\n\n"
+            "Score: [Based on the stated scale, choose from -2, -1, 0, 1, 2]\n\n"
 
             "Consider the context snippets below in which the feature activates:\n\n"
         )
         for info in tokens_info:
             prompt += f"Context: {info['context']}\n\n"
         prompt += (
-            "Now provide your one-line answer.\n"
+            "Now provide your two-line answer.\n"
         )
         return prompt
 
-    def chat_and_process_score(self, latent_id: int, prompt: str, tokens_info):
+    def chat_and_process_score(self, latent: str, prompt: str, tokens_info):
+        if self.results[latent]['score'] is not None:
+            print(f'skip latent #{latent} with explanation in {self.output_path}')
+            return
+
+        latent_id = int(latent)
         response = None
         try:
             response = self.chat_completion(self.clients, prompt)
-            match = re.search(r"-?\d+", response)
-            if match:
-                score = int(match.group(0))
-                if -2 <= score <= 2:
-                    self.results[latent_id] = {
-                        'score': score,
-                        'weight': self.selected_latents[str(latent_id)],
-                        'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))],
-                        'prompt': prompt,
-                        'response': response
-                    }
-                    self.scored_features += 1
+            explanation, score = extract_explanation_and_score(response)
+            if -2 <= score <= 2:
+                self.results[latent_id] = {
+                    'score': score,
+                    'explanation': explanation,
+                    'weight': self.selected_latents[str(latent_id)],
+                    'contexts': [tokens_info[i]['context'] for i in range( min(20, len(tokens_info)))],
+                    'prompt': prompt,
+                    'response': response
+                }
+                self.scored_features += 1
         except Exception as e:
             print(f"Error processing latent {latent_id}: {e}")
             self.results[latent_id] = {
                 'score': None,
+                'explanation': None,
                 'weight': self.selected_latents[str(latent_id)],
                 'contexts': None,
                 'prompt': prompt,
@@ -1123,6 +1129,12 @@ class Interpreter:
 
         self.results = {}
         self.scored_features = 0
+        if os.path.exists(self.output_path):
+            with open(self.output_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            self.results = data.get('results', {})
+            self.scored_features = data.get('features_scored', 0)
+        
         for latent in tqdm(sampled_latents):
             latent_id = int(latent)
 
@@ -1134,10 +1146,10 @@ class Interpreter:
             
             if self.cfg.explanation_or_score=='score':
                 prompt = self.construct_score_prompt(tokens_info[:self.cfg.context_per_latent])
-                self.chat_and_process_score(latent_id, prompt, tokens_info)
+                self.chat_and_process_score(latent, prompt, tokens_info)
             elif self.cfg.explanation_or_score=='explanation':
                 prompt = self.construct_explain_prompt(tokens_info[:self.cfg.context_per_latent])
-                self.chat_and_process_explain(latent_id, prompt, tokens_info)
+                self.chat_and_process_explain(latent, prompt, tokens_info)
             else:
                 raise ValueError(f'choose explanation_or_score from [explanation, score], you are using {self.cfg.explanation_or_score}')
         
