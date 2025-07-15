@@ -51,7 +51,7 @@ if __name__ == '__main__':
                         help='Path to the model directory containing model.safetensors or index.json')
     parser.add_argument('--context_path', type=str, required=True,
                         help='Path to context JSON file containing latent_context_map')
-    parser.add_argument('--top_k_list', type=int, nargs='+', default=[50, 100, 150, 200, 250, 300, 350, 400],
+    parser.add_argument('--top_k_list', type=int, nargs='+', default=[50, 100, 150, 200, 250, 300],
                         help='List of top-K values to extract (default: %(default)s)')
     parser.add_argument('--output_dir', type=str, default='.',
                         help='Directory to save output JSON files (default: current directory)')
