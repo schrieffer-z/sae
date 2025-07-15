@@ -1,5 +1,5 @@
-model_name = '/NAS/zhangsy/sarm_models/Llama-3.1-8B-Instruct_sequence_Latent65536_Layer16_K192_1B-SARM-woTopK-LastToken-0/checkpoint-150'
-context_path = './contexts/backup/Llama-3.1-8B-Instruct_sequence_Latent65536_Layer16_K192_1B_5.0.json'
+model_name = ''
+context_path = ''
 
 
 import json

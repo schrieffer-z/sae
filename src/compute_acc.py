@@ -1,6 +1,6 @@
 import json
 
-with open('interpret/interp_Llama-3.1-8B-Instruct_sequence_Latent65536_Layer16_K192_1B_score.json', 'r', encoding='utf-8') as f:
+with open('', 'r', encoding='utf-8') as f:
     data = json.load(f)
 
 latent_map = data['results']
