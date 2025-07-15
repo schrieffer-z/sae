@@ -13,25 +13,33 @@ def main():
         # 打开并读取JSON文件
         with open(args.file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
+        with open(args.latent_path, 'r', encoding='utf-8') as f:
+            selected_latents = json.load(f) 
         
         latent_map = data.get('results', {})
         cnt_valid = 0
+        cnt_scored = 0
         cnt_correct = 0
         
         for latent in latent_map:
             # 跳过无效分数条目
+            if latent not in selected_latents.keys():
+                continue
             if latent_map[latent]['score'] is None:
                 continue
+            cnt_scored += 1
             if latent_map[latent]['score'] == 0:
                 continue
+
             
             # 统计有效和正确的值
             cnt_valid += 1
-            if latent_map[latent]['score'] * latent_map[latent].get('weight', 0) > 0:
+            if latent_map[latent]['score'] * selected_latents[latent] > 0:
                 cnt_correct += 1
         
         # 输出结果
         if cnt_valid > 0:
+            print(f"已评分条目数: {cnt_scored}")
             print(f"有效条目数: {cnt_valid}")
             print(f"正确条目数: {cnt_correct}")
             print(f"正确率: {cnt_correct / cnt_valid:.4f} ({cnt_correct}/{cnt_valid})")

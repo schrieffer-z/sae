@@ -70,7 +70,6 @@ def parse_args():
     # interpret
     parser.add_argument('--context_path', type=str, required=False, help='Path to the specified context file')
     parser.add_argument('--context_per_latent', type=int, default=10, help='use context_per_latent contexts as prompt')
-    parser.add_argument('--explanation_or_score', type=str, default='score', help='explain latent or score latent')
 
     parser.add_argument('--pipe_run', type=str, required=True, help='e.g. 1000: [train(filp the 1st 0 when training), evaluate, apply, interpret]')
     parser.add_argument('--output_path', type=str, default="../SAE_models", help='0000:nothing, train, evaluate, apply, interpret')
@@ -923,7 +922,7 @@ class Interpreter:
         self.cfg = cfg
 
     
-    def construct_score_prompt(self, tokens_info: dict) -> str:
+    def construct_prompt(self, tokens_info: dict) -> str:
         prompt = (
             "A reward model outputs a **single scalar** estimating how well a model-generated response "
             "aligns with human preferences for a given question.\n\n"
@@ -959,8 +958,8 @@ class Interpreter:
         )
         return prompt
 
-    def chat_and_process_score(self, latent: str, prompt: str, tokens_info):
-        if self.results[latent]['score'] is not None:
+    def chat_and_process(self, latent: str, prompt: str, tokens_info):
+        if latent in self.results and self.results[latent]['score'] is not None:
             print(f'skip latent #{latent} with explanation in {self.output_path}')
             return
 
@@ -973,7 +972,6 @@ class Interpreter:
                 self.results[latent_id] = {
                     'score': score,
                     'explanation': explanation,
-                    'weight': self.selected_latents[str(latent_id)],
                     'contexts': [tokens_info[i]['context'] for i in range( min(20, len(tokens_info)))],
                     'prompt': prompt,
                     'response': response
@@ -984,7 +982,6 @@ class Interpreter:
             self.results[latent_id] = {
                 'score': None,
                 'explanation': None,
-                'weight': self.selected_latents[str(latent_id)],
                 'contexts': None,
                 'prompt': prompt,
                 'response': response if response is not None else None
@@ -998,76 +995,6 @@ class Interpreter:
         save_json(output_data, self.output_path)
         print(f'Saved data to {self.output_path}')
     
-    def construct_explain_prompt(self, tokens_info: list[dict]) -> str:
-        prompt = (
-            # ——背景——
-            "We are evaluating the *monosemanticity* (semantic concentration) of a single feature in a language model. "
-            "The feature fires only when certain contexts appear.\n\n"
-
-            # ——任务说明——
-            "You will examine the contexts below and assign the feature a *monosemanticity score* using this rubric:\n"
-            "5  — Clear pattern; **no** outliers\n"
-            "4  — Clear pattern; **1-2** outliers\n"
-            "3  — General pattern present; **several** outliers\n"
-            "2  — Broad theme but weak structure\n"
-            "1  — No discernible pattern\n\n"
-
-            # ——注意事项——
-            "Guidelines:\n"
-            "• Focus on the overall semantic theme that triggers the feature.\n"
-            "• Ignore surface details; look for shared meaning.\n\n"
-
-            # ——输出格式——
-            "Respond **exactly** in the following two-line format:\n"
-            "Explanation: <Summarize the overall semantic of the feature(such context) in a concise sentence.\n"
-            "Score: <5|4|3|2|1>\n\n"
-
-            # ——待评上下文——
-            "Feature-activating contexts:\n\n"
-        )
-
-        for info in tokens_info:
-            prompt += f"Context: {info['context']}\n\n"
-
-        prompt += "Now provide your two-line answer."
-        return prompt
-
-    def chat_and_process_explain(self, latent_id: int, prompt: str, tokens_info):
-        response = None
-        try:
-            response = self.chat_completion(self.clients, prompt)
-            explanation, score = extract_explanation_and_score(response)
-            
-            if -2 <= score <= 2:
-                self.results[latent_id] = {
-                    'score': score,
-                    'explanation': explanation,
-                    'weight': self.selected_latents[str(latent_id)],
-                    'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))],
-                    'prompt': prompt,
-                    'response': response
-                }
-                self.scored_features += 1
-        except Exception as e:
-            print(f"Error processing latent {latent_id}: {e}")
-            self.results[latent_id] = {
-                'score': None,
-                'explanation': None,
-                'weight': self.selected_latents[str(latent_id)],
-                'contexts': [tokens_info[i]['context'] for i in range(len(tokens_info))],
-                'prompt': prompt,
-                'response': response if response is not None else None
-            }
-
-        output_data = {
-            'engine': self.cfg.engine,
-            'features_scored': self.scored_features,
-            'results': self.results,
-        }
-        save_json(output_data, self.output_path)
-        print(f'Saved data to {self.output_path}')
-
-
 
     def chat_completion(
         self, clients: list, prompt: str, max_retry: int=2
@@ -1094,7 +1021,8 @@ class Interpreter:
                 except:
                     continue
         raise Exception('Failed to get a response from the OpenAI API')
-    
+
+
     def run(
         self, data_path: str=None, output_path: str=None
     ) -> float:
@@ -1102,7 +1030,7 @@ class Interpreter:
             data_path = self.cfg.data_path
 
         if output_path is None:
-            self.output_path = f'../interpret/interp_{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}_{self.cfg.explanation_or_score}.json'
+            self.output_path = f'../interpret/interp_{os.path.splitext(os.path.basename(self.cfg.SAE_path))[0]}.json'
 
         with open(data_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -1136,24 +1064,14 @@ class Interpreter:
             self.scored_features = data.get('features_scored', 0)
         
         for latent in tqdm(sampled_latents):
-            latent_id = int(latent)
-
             token_contexts = latent_context_map[latent]
             tokens_info = []
-            for token_class, contexts in token_contexts.items():
+            for _, contexts in token_contexts.items():
                 tokens_info += contexts
             tokens_info = sorted(tokens_info, key=lambda x: x['activation'], reverse=True)
             
-            if self.cfg.explanation_or_score=='score':
-                prompt = self.construct_score_prompt(tokens_info[:self.cfg.context_per_latent])
-                self.chat_and_process_score(latent, prompt, tokens_info)
-            elif self.cfg.explanation_or_score=='explanation':
-                prompt = self.construct_explain_prompt(tokens_info[:self.cfg.context_per_latent])
-                self.chat_and_process_explain(latent, prompt, tokens_info)
-            else:
-                raise ValueError(f'choose explanation_or_score from [explanation, score], you are using {self.cfg.explanation_or_score}')
-        
-        return
+            prompt = self.construct_prompt(tokens_info[:self.cfg.context_per_latent])
+            self.chat_and_process(latent, prompt, tokens_info)
 
 
 class SAE_pipeline:
