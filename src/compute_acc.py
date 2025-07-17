@@ -1,6 +1,7 @@
 import json
 import argparse
 import sys
+from collections import defaultdict
 
 def main():
     # 设置命令行参数解析
@@ -9,6 +10,8 @@ def main():
     parser.add_argument('--latent_path', type=str, help='只计算特定latents的准确性')
     args = parser.parse_args()
 
+    debug_latent = defaultdict(lambda: defaultdict())
+    correct_latent = defaultdict(lambda: defaultdict())
     try:
         # 打开并读取JSON文件
         with open(args.file_path, 'r', encoding='utf-8') as f:
@@ -36,6 +39,11 @@ def main():
             cnt_valid += 1
             if latent_map[latent]['score'] * selected_latents[latent] > 0:
                 cnt_correct += 1
+                correct_latent[latent] = latent_map[latent]
+                correct_latent[latent]['weight'] = selected_latents[latent]        
+            else:
+                debug_latent[latent] = latent_map[latent]
+                debug_latent[latent]['weight'] = selected_latents[latent]        
         
         # 输出结果
         if cnt_valid > 0:
@@ -43,6 +51,10 @@ def main():
             print(f"有效条目数: {cnt_valid}")
             print(f"正确条目数: {cnt_correct}")
             print(f"正确率: {cnt_correct / cnt_valid:.4f} ({cnt_correct}/{cnt_valid})")
+            with open('debug.json', 'w', encoding='utf-8') as f:
+                json.dump(debug_latent, f, ensure_ascii=False, indent=4)
+            with open('correct.json', 'w', encoding='utf-8') as f:
+                json.dump(correct_latent, f, ensure_ascii=False, indent=4)
             return 0
         else:
             print("错误: 没有找到有效条目")

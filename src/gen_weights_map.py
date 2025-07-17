@@ -6,6 +6,7 @@ from safetensors.torch import load_file
 
 def extract_top_latents(model_name: str,
                         context_path: str,
+                        min_context_per_latent :int,
                         top_k_list: list[int],
                         output_dir: str = '.',
                         output_name: str = 'a'):
@@ -27,6 +28,9 @@ def extract_top_latents(model_name: str,
     # 3. 构建 latent-score 映射并排序
     latent_list = []
     for latent in all_latents:
+        num_contexts = sum([len(latent_context_map[latent][token]) for token in latent_context_map[latent]])
+        if num_contexts < min_context_per_latent:
+            continue
         latent_list.append({latent: score_weights[int(latent)].item()})
     latent_list.sort(key=lambda x: list(x.values())[0], reverse=True)
 
@@ -51,6 +55,8 @@ if __name__ == '__main__':
                         help='Path to the model directory containing model.safetensors or index.json')
     parser.add_argument('--context_path', type=str, required=True,
                         help='Path to context JSON file containing latent_context_map')
+    parser.add_argument('--min_context_per_latent', type=int, default=20,
+                    help='minimal numbers of context for each latent')
     parser.add_argument('--top_k_list', type=int, nargs='+', default=[50, 100, 150, 200, 250, 300],
                         help='List of top-K values to extract (default: %(default)s)')
     parser.add_argument('--output_dir', type=str, default='.',
@@ -62,6 +68,7 @@ if __name__ == '__main__':
     extract_top_latents(
         model_name=args.model_name,
         context_path=args.context_path,
+        min_context_per_latent=args.min_context_per_latent,
         top_k_list=args.top_k_list,
         output_dir=args.output_dir,
         output_name=args.output_name

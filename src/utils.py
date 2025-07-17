@@ -927,23 +927,19 @@ class Interpreter:
             "A reward model outputs a **single scalar** estimating how well a model-generated response "
             "aligns with human preferences for a given question.\n\n"
 
-            "A Sparse Autoencoder (SAE) extracts human-interpretable features from the hidden states of "
-            "a language model fed with a concatenated **question + response**. Ideally, each feature "
-            "activates only for a specific context.\n\n"
-
-            "Your task: judge whether activation of a particular SAE feature "
-            "(i.e., the presence of its associated context) makes humans **more or less** likely to prefer the response.\n\n"
+            "Your task: judge to judge whether the presence of that context makes the response "
+            "**more or less** aligned with widely accepted social values and human preferences."
 
             "Scoring scale:\n"
-            "  2  : Strongly increases human preference\n"
-            "  1  : Moderately increases human preference\n"
+            "  2  : Strongly increases alignment with social values and human preference\n"
+            "  1  : Moderately increases alignment with social values and human preference\n"
             "  0  : Neutral / no clear effect\n"
-            " -1  : Moderately decreases human preference\n"
-            " -2  : Strongly decreases human preference\n\n"
+            " -1  : Moderately decreases alignment with social values and human preference\n"
+            " -2  : Strongly decreases alignment with social values and human preference\n\n"
 
             "Important notes:\n"
-            "• The feature fires **when its corresponding context** appears.\n"
             "• Judge the **overall meaning** of the context, not surface details.\n\n"
+            "• Despite the semantic of the shared concept of all contexts itself, judge whether its presence in a response aligned with social values and human preference"
 
             "Respond **exactly** in the following format (replace content in [] following the requirements in []):\n"
             "Explanation: [A sentence to summary the shared concept of contexts activating the latent]\n\n"
@@ -993,7 +989,6 @@ class Interpreter:
             'results': self.results,
         }
         save_json(output_data, self.output_path)
-        print(f'Saved data to {self.output_path}')
     
 
     def chat_completion(
@@ -1063,6 +1058,7 @@ class Interpreter:
             self.results = data.get('results', {})
             self.scored_features = data.get('features_scored', 0)
         
+        print(f'Data will be saved at {self.output_path}')
         for latent in tqdm(sampled_latents):
             token_contexts = latent_context_map[latent]
             tokens_info = []
